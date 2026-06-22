@@ -109,3 +109,8 @@ coverage/
 .stylelintcache
 .node_repl_history
 .yarn-integrity
+
+# ==========================
+# Guias da IDE
+# ==========================
+guidelines/
