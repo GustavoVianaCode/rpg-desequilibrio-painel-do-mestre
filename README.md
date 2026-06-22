@@ -113,7 +113,7 @@ O projeto adota um **Dark Mode estrito** com a seguinte paleta:
 
 ## 📜 Licença
 
-Este projeto foi desenvolvido para uso interno de uma mesa de RPG de mesa. Todos os direitos reservados "RPG DESEQUILÍBRIUM - Maria Rita Fernandes".
+Este projeto foi desenvolvido para uso interno de uma mesa de RPG. Todos os direitos reservados "RPG DESEQUILÍBRIO - Maria Rita Fernandes".
 
 ---
 
