@@ -1,0 +1,114 @@
+import { AvatarDropzone } from "../shared/AvatarDropzone";
+import { FriendshipMatrix } from "./FriendshipMatrix";
+import type { Player } from "../player/PlayerCard";
+import type { Friendship } from "./FriendshipMatrix";
+
+// ── Types ─────────────────────────────────────────────────────────────────────
+
+export interface Npc {
+  id: number;
+  name: string;
+  type: string;
+  initials: string;
+  familiarName: string;
+  familiarInitials: string;
+  dormitory: string;
+  subject: string;
+  friendships: Friendship[];
+}
+
+interface NpcCardProps {
+  npc: Npc;
+  players: Player[];
+  onFriendshipChange: (npcId: number, playerId: number, delta: number) => void;
+}
+
+// ── Data fields list ──────────────────────────────────────────────────────────
+
+const DATA_FIELD_KEYS: { label: string; key: keyof Npc }[] = [
+  { label: "Nome do Familiar",   key: "familiarName" },
+  { label: "Dormitório",         key: "dormitory"    },
+  { label: "Matéria que estuda", key: "subject"      },
+];
+
+// ── NPC Card ──────────────────────────────────────────────────────────────────
+
+/**
+ * Card displaying an NPC or Familiar with their avatar pair,
+ * static data fields, and the interactive FriendshipMatrix.
+ */
+export function NpcCard({ npc, players, onFriendshipChange }: NpcCardProps) {
+  return (
+    <div
+      className="bg-card border border-border relative"
+      style={{ fontFamily: "var(--font-body)" }}
+    >
+      {/* Top accent rule */}
+      <div className="absolute top-0 left-0 right-0 h-[2px] bg-primary" />
+
+      {/*
+       * Avatar group — 136 × 150 px container.
+       * Main avatar (120 px) anchored top-left.
+       * Familiar (46 px) + label anchored bottom-right, overlapping main's corner.
+       */}
+      <div
+        className="relative flex-shrink-0 mt-6 mx-auto"
+        style={{ width: 136, height: 150 }}
+      >
+        <div className="absolute top-0 left-0">
+          <AvatarDropzone initials={npc.initials} size={120} />
+        </div>
+
+        <div className="absolute bottom-0 right-0 flex flex-col items-center gap-0.5">
+          <div className="rounded-full" style={{ padding: 2, background: "#141414" }}>
+            <AvatarDropzone initials={npc.familiarInitials} size={46} />
+          </div>
+          <span
+            className="text-muted-foreground leading-none"
+            style={{ fontFamily: "var(--font-body)", fontSize: "0.48rem", letterSpacing: "0.12em", textTransform: "uppercase" }}
+          >
+            Familiar
+          </span>
+        </div>
+      </div>
+
+      {/* Nome */}
+      <div className="text-center px-4 pt-3 pb-4">
+        <p
+          className="text-foreground leading-tight"
+          style={{ fontFamily: "var(--font-display)", fontSize: "1.05rem", fontWeight: 700, letterSpacing: "0.07em", textTransform: "uppercase" }}
+        >
+          {npc.name}
+        </p>
+      </div>
+
+      {/* Data fields */}
+      <div className="border-t border-border px-4 py-3 flex flex-col gap-2">
+        {DATA_FIELD_KEYS.map(({ label, key }) => (
+          <div key={key} className="flex items-baseline justify-between gap-2">
+            <span
+              className="text-muted-foreground flex-shrink-0"
+              style={{ fontFamily: "var(--font-body)", fontSize: "0.6rem", letterSpacing: "0.12em", textTransform: "uppercase" }}
+            >
+              {label}
+            </span>
+            <span
+              className="text-foreground text-right"
+              style={{ fontFamily: "var(--font-body)", fontSize: "0.72rem" }}
+            >
+              {npc[key] as string}
+            </span>
+          </div>
+        ))}
+      </div>
+
+      {/* Relationship matrix — extracted sub-component */}
+      <FriendshipMatrix
+        npcId={npc.id}
+        players={players}
+        friendships={npc.friendships}
+        onFriendshipChange={onFriendshipChange}
+      />
+    </div>
+  );
+}
