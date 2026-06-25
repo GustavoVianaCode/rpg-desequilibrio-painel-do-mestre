@@ -32,7 +32,11 @@ O design usa uma paleta de cores composta por **Preto, Branco, Cinza e Vermelho*
 
 ### 🕸️ Matriz de Amizades
 - Rastreamento visual de **relacionamentos entre NPCs, Familiares e Jogadores**.
-- Escala de **0 a 4 níveis de intensidade**, níveis sendo (conhecido, colega, amigo e melhor amigo) permitindo ao mestre monitorar alianças, rivalidades e laços afetivos de forma rápida e intuitiva.
+- Escala **bidirecional de -4 a +4**, os níveis sendo (💀 Profundo ódio, 😠 Inimigo, 😒 Não gosta, 😑 Não vai com a cara, 😐 Neutro, 🙂 Colega, 😊 Parceiro, 😄 Amigo, 🌟 Grande Amigo). Permitindo ao mestre monitorar desde inimizades declaradas até laços de grande amizade de forma rápida e intuitiva.
+
+### 🗑️ Exclusão Segura de Personagens
+- **Exclusão de NPCs e Jogadores** com modal de confirmação (AlertDialog) para evitar remoções acidentais.
+- **Limpeza automática de vínculos**: ao excluir um Jogador, todas as entradas correspondentes nos arrays `friendships` de todos os NPCs são removidas automaticamente.
 
 ### 🖼️ Upload de Imagens
 - Áreas de **drag-and-drop** dedicadas para o upload de:
@@ -62,7 +66,7 @@ Siga os passos abaixo para executar o projeto em sua máquina:
 
 Certifique-se de ter instalado:
 - [Node.js](https://nodejs.org/) (versão 18 ou superior)
-- [pnpm](https://pnpm.io/installation)
+- npm (incluído com o Node.js)
 
 ### Passo a Passo
 
@@ -177,7 +181,7 @@ Representa um NPC ou Familiar que interage com os jogadores na sessão.
   "subject": "Conjuração Arcana",
   "friendships": [
     { "playerId": 1, "level": 3 },
-    { "playerId": 2, "level": 1 },
+    { "playerId": 2, "level": -2 },
     { "playerId": 3, "level": 4 }
   ]
 }
@@ -207,15 +211,30 @@ Cada NPC possui um array `friendships` que mapeia sua relação com **cada jogad
 }
 ```
 
-| Campo      | Tipo           | Obrigatório | Descrição                                                                              |
-|------------|----------------|-------------|----------------------------------------------------------------------------------------|
-| `playerId` | `number`       | ✅ Sim      | ID do jogador com quem o NPC possui essa relação. Deve referenciar um `Player.id` válido. |
-| `level`    | `number` (0–4) | ✅ Sim      | Nível de amizade. `0` = neutro/sem relação, `4` = vínculo máximo.                    |
+| Campo      | Tipo              | Obrigatório | Descrição                                                                              |
+|------------|-------------------|-------------|----------------------------------------------------------------------------------------|
+| `playerId` | `number`          | ✅ Sim      | ID do jogador com quem o NPC possui essa relação. Deve referenciar um `Player.id` válido. |
+| `level`    | `number` (-4 a 4) | ✅ Sim      | Nível de relação. Escala bidirecional de inimizade a grande amizade (ver tabela abaixo). |
+
+#### Escala de Níveis de Amizade
+
+| Valor | Descrição          |
+|-------|--------------------|
+| `-4`  | 💀 Profundo ódio   |
+| `-3`  | 😠 Inimigo         |
+| `-2`  | 😒 Não gosta       |
+| `-1`  | 😑 Não vai com a cara    |
+| ` 0`  | 😐 Neutro          |
+| `+1`  | 🙂 Colega          |
+| `+2`  | 😊 Parceiro        |
+| `+3`  | 😄 Amigo           |
+| `+4`  | 🌟 Grande Amigo    |
 
 > **Regras de negócio:**
 > - O array `friendships` deve conter **uma entrada para cada jogador ativo** na sessão. NPCs criados após jogadores já existentes recebem `level: 0` para cada um deles automaticamente.
 > - Quando um novo jogador é adicionado, **todos os NPCs existentes** devem receber uma nova entrada `{ playerId: <novoId>, level: 0 }` em seus arrays de `friendships`.
-> - O nível de amizade é **sempre inteiro** e **clampado entre 0 e 4** pelo front-end.
+> - Quando um jogador é **excluído**, sua entrada deve ser **removida do array `friendships` de todos os NPCs**.
+> - O nível de amizade é **sempre inteiro** e **clampado entre -4 e +4** pelo front-end.
 
 ---
 
@@ -248,7 +267,7 @@ Estrutura sugerida para um endpoint que retorna o estado completo de uma sessão
       "dormitory": "A17",
       "subject": "Tempo",
       "friendships": [
-        { "playerId": 1, "level": 3 }
+        { "playerId": 1, "level": -1 }
       ]
     }
   ]
