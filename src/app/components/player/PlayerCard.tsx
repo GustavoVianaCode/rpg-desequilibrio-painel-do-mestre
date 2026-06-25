@@ -48,8 +48,8 @@ function StrikeRow({ strikes, onAdd, onRemove }: StrikeRowProps) {
   return (
     <div className="flex flex-col items-center gap-1.5 w-full">
       <p
-        className="text-muted-foreground"
-        style={{ fontFamily: "var(--font-body)", fontSize: "0.55rem", letterSpacing: "0.18em", textTransform: "uppercase" }}
+        className="text-xs font-bold tracking-wider text-muted-foreground uppercase"
+        style={{ fontFamily: "var(--font-body)" }}
       >
         Marcas de Falha
       </p>
@@ -192,8 +192,8 @@ export function PlayerCard({ player, onPointChange, onStrikeChange, onImageChang
           {player.name}
         </p>
         <p
-          className="text-muted-foreground mt-0.5"
-          style={{ fontFamily: "var(--font-body)", fontSize: "0.62rem", letterSpacing: "0.13em", textTransform: "uppercase" }}
+          className="text-xs font-semibold tracking-wider text-slate-400 uppercase mt-0.5"
+          style={{ fontFamily: "var(--font-body)" }}
         >
           {player.role}
         </p>
@@ -203,14 +203,14 @@ export function PlayerCard({ player, onPointChange, onStrikeChange, onImageChang
       {player.dormitory && player.dormitory !== "—" && (
         <div className="flex items-baseline justify-between gap-2 w-full px-1">
           <span
-            className="text-muted-foreground flex-shrink-0"
-            style={{ fontFamily: "var(--font-body)", fontSize: "0.6rem", letterSpacing: "0.12em", textTransform: "uppercase" }}
+            className="text-xs font-bold tracking-wider text-muted-foreground flex-shrink-0 uppercase"
+            style={{ fontFamily: "var(--font-body)" }}
           >
             Dormitório
           </span>
           <span
-            className="text-foreground text-right"
-            style={{ fontFamily: "var(--font-body)", fontSize: "0.72rem" }}
+            className="text-sm font-medium text-white text-right"
+            style={{ fontFamily: "var(--font-body)" }}
           >
             {player.dormitory}
           </span>
@@ -230,8 +230,8 @@ export function PlayerCard({ player, onPointChange, onStrikeChange, onImageChang
       {/* Pontos */}
       <div className="flex flex-col items-center gap-0.5">
         <p
-          className="text-muted-foreground"
-          style={{ fontFamily: "var(--font-body)", fontSize: "0.58rem", letterSpacing: "0.18em", textTransform: "uppercase" }}
+          className="text-xs font-bold tracking-wider text-muted-foreground uppercase"
+          style={{ fontFamily: "var(--font-body)" }}
         >
           Pontos
         </p>
