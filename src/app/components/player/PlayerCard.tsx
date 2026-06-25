@@ -1,6 +1,17 @@
-import { X } from "lucide-react";
+import { useState } from "react";
+import { X, Trash2 } from "lucide-react";
 import { AvatarDropzone } from "../shared/AvatarDropzone";
 import { MAX_STRIKES } from "../../../data/initialData";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "../ui/alert-dialog";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -22,6 +33,7 @@ interface PlayerCardProps {
   onPointChange: (id: number, delta: number) => void;
   onStrikeChange: (id: number, delta: number) => void;
   onImageChange: (id: number, dataUrl: string) => void;
+  onDelete: (id: number) => void;
 }
 
 // ── Strike row ────────────────────────────────────────────────────────────────
@@ -87,14 +99,62 @@ function StrikeRow({ strikes, onAdd, onRemove }: StrikeRowProps) {
 
 // ── Player Card ───────────────────────────────────────────────────────────────
 
-export function PlayerCard({ player, onPointChange, onStrikeChange, onImageChange }: PlayerCardProps) {
+export function PlayerCard({ player, onPointChange, onStrikeChange, onImageChange, onDelete }: PlayerCardProps) {
+  const [confirmOpen, setConfirmOpen] = useState(false);
+
   return (
-    <div
-      className="bg-card border border-border flex flex-col items-center gap-3 p-5 relative"
-      style={{ fontFamily: "var(--font-body)" }}
-    >
-      {/* Top accent rule */}
-      <div className="absolute top-0 left-0 right-0 h-[2px] bg-primary" />
+    <>
+      <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+        <AlertDialogContent className="border-border bg-card">
+          <AlertDialogHeader>
+            <AlertDialogTitle
+              className="text-foreground"
+              style={{ fontFamily: "var(--font-display)", letterSpacing: "0.06em", textTransform: "uppercase" }}
+            >
+              Excluir personagem?
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-muted-foreground text-sm leading-relaxed">
+              Tem certeza que deseja excluir{" "}
+              <span className="text-foreground font-semibold">{player.name}</span>? Esta ação
+              não pode ser desfeita.{" "}
+              <span className="text-amber-400">
+                Ele também será removido das amizades de todos os NPCs.
+              </span>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel
+              className="border-border bg-secondary text-foreground hover:bg-secondary/70"
+              style={{ fontFamily: "var(--font-display)", fontSize: "0.72rem", letterSpacing: "0.1em", textTransform: "uppercase" }}
+            >
+              Cancelar
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => onDelete(player.id)}
+              className="bg-red-700 hover:bg-red-600 text-white border-0"
+              style={{ fontFamily: "var(--font-display)", fontSize: "0.72rem", letterSpacing: "0.1em", textTransform: "uppercase" }}
+            >
+              Sim, excluir
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <div
+        className="bg-card border border-border flex flex-col items-center gap-3 p-5 relative"
+        style={{ fontFamily: "var(--font-body)" }}
+      >
+        {/* Top accent rule */}
+        <div className="absolute top-0 left-0 right-0 h-[2px] bg-primary" />
+
+        {/* Delete button */}
+        <button
+          onClick={() => setConfirmOpen(true)}
+          className="absolute top-3 right-3 w-6 h-6 flex items-center justify-center text-muted-foreground hover:text-red-500 transition-colors duration-150 z-10"
+          title="Excluir jogador"
+        >
+          <Trash2 size={13} strokeWidth={2} />
+        </button>
 
       {/*
        * Avatar group — 160 × 176 px container.
@@ -214,6 +274,7 @@ export function PlayerCard({ player, onPointChange, onStrikeChange, onImageChang
           </button>
         ))}
       </div>
-    </div>
+      </div>
+    </>
   );
 }

@@ -1,7 +1,19 @@
+import { useState } from "react";
+import { Trash2 } from "lucide-react";
 import { AvatarDropzone } from "../shared/AvatarDropzone";
 import { FriendshipMatrix } from "./FriendshipMatrix";
 import type { Player } from "../player/PlayerCard";
 import type { Friendship } from "./FriendshipMatrix";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "../ui/alert-dialog";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -21,6 +33,7 @@ interface NpcCardProps {
   npc: Npc;
   players: Player[];
   onFriendshipChange: (npcId: number, playerId: number, delta: number) => void;
+  onDelete: (id: number) => void;
 }
 
 // ── Data fields list ──────────────────────────────────────────────────────────
@@ -37,14 +50,59 @@ const DATA_FIELD_KEYS: { label: string; key: keyof Npc }[] = [
  * Card displaying an NPC or Familiar with their avatar pair,
  * static data fields, and the interactive FriendshipMatrix.
  */
-export function NpcCard({ npc, players, onFriendshipChange }: NpcCardProps) {
+export function NpcCard({ npc, players, onFriendshipChange, onDelete }: NpcCardProps) {
+  const [confirmOpen, setConfirmOpen] = useState(false);
+
   return (
-    <div
-      className="bg-card border border-border relative"
-      style={{ fontFamily: "var(--font-body)" }}
-    >
-      {/* Top accent rule */}
-      <div className="absolute top-0 left-0 right-0 h-[2px] bg-primary" />
+    <>
+      <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+        <AlertDialogContent className="border-border bg-card">
+          <AlertDialogHeader>
+            <AlertDialogTitle
+              className="text-foreground"
+              style={{ fontFamily: "var(--font-display)", letterSpacing: "0.06em", textTransform: "uppercase" }}
+            >
+              Excluir personagem?
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-muted-foreground text-sm leading-relaxed">
+              Tem certeza que deseja excluir{" "}
+              <span className="text-foreground font-semibold">{npc.name}</span>? Esta ação
+              não pode ser desfeita.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel
+              className="border-border bg-secondary text-foreground hover:bg-secondary/70"
+              style={{ fontFamily: "var(--font-display)", fontSize: "0.72rem", letterSpacing: "0.1em", textTransform: "uppercase" }}
+            >
+              Cancelar
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => onDelete(npc.id)}
+              className="bg-red-700 hover:bg-red-600 text-white border-0"
+              style={{ fontFamily: "var(--font-display)", fontSize: "0.72rem", letterSpacing: "0.1em", textTransform: "uppercase" }}
+            >
+              Sim, excluir
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <div
+        className="bg-card border border-border relative"
+        style={{ fontFamily: "var(--font-body)" }}
+      >
+        {/* Top accent rule */}
+        <div className="absolute top-0 left-0 right-0 h-[2px] bg-primary" />
+
+        {/* Delete button */}
+        <button
+          onClick={() => setConfirmOpen(true)}
+          className="absolute top-3 right-3 w-6 h-6 flex items-center justify-center text-muted-foreground hover:text-red-500 transition-colors duration-150 z-10"
+          title="Excluir NPC"
+        >
+          <Trash2 size={13} strokeWidth={2} />
+        </button>
 
       {/*
        * Avatar group — 136 × 150 px container.
@@ -87,14 +145,14 @@ export function NpcCard({ npc, players, onFriendshipChange }: NpcCardProps) {
         {DATA_FIELD_KEYS.map(({ label, key }) => (
           <div key={key} className="flex items-baseline justify-between gap-2">
             <span
-              className="text-muted-foreground flex-shrink-0"
-              style={{ fontFamily: "var(--font-body)", fontSize: "0.6rem", letterSpacing: "0.12em", textTransform: "uppercase" }}
+              className="text-xs font-bold tracking-wider text-muted-foreground flex-shrink-0"
+              style={{ fontFamily: "var(--font-body)", textTransform: "uppercase" }}
             >
               {label}
             </span>
             <span
-              className="text-foreground text-right"
-              style={{ fontFamily: "var(--font-body)", fontSize: "0.72rem" }}
+              className="text-sm font-medium text-white text-right"
+              style={{ fontFamily: "var(--font-body)" }}
             >
               {npc[key] as string}
             </span>
@@ -109,6 +167,7 @@ export function NpcCard({ npc, players, onFriendshipChange }: NpcCardProps) {
         friendships={npc.friendships}
         onFriendshipChange={onFriendshipChange}
       />
-    </div>
+      </div>
+    </>
   );
 }

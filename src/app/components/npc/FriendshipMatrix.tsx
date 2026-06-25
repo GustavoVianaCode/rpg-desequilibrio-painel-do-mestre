@@ -4,7 +4,7 @@ import type { Player } from "../player/PlayerCard";
 
 export interface Friendship {
   playerId: number;
-  level: number; // 0–4
+  level: number; // -4 to +4
 }
 
 interface FriendshipMatrixProps {
@@ -14,21 +14,90 @@ interface FriendshipMatrixProps {
   onFriendshipChange: (npcId: number, playerId: number, delta: number) => void;
 }
 
-// ── Sub-components ────────────────────────────────────────────────────────────
+// ── Friendship level names ─────────────────────────────────────────────────────
 
-function FriendshipDots({ level }: { level: number }) {
+const FRIENDSHIP_LEVELS: Record<number, string> = {
+  "-4": "Profundo ódio",
+  "-3": "Inimigo",
+  "-2": "Não gosta",
+  "-1": "Não vai com a cara",
+   "0": "Neutro",
+   "1": "Colega",
+   "2": "Parceiro",
+   "3": "Amigo",
+   "4": "Grande amigo",
+};
+
+function getLevelName(level: number): string {
+  return FRIENDSHIP_LEVELS[String(level)] ?? "Neutro";
+}
+
+// ── Bidirectional bar ─────────────────────────────────────────────────────────
+
+/**
+ * Segmented bidirectional thermometer bar.
+ * Negative values fill left (red), positive fill right (slate/light).
+ * Centre segment always visible as a neutral anchor.
+ */
+function FriendshipBar({ level }: { level: number }) {
+  // 4 segments on each side
+  const SEGMENTS = 4;
+
   return (
-    <div className="flex items-center gap-1">
-      {Array.from({ length: 4 }, (_, i) => (
+    <div className="flex flex-col items-stretch gap-0.5 w-full">
+      {/* Bar */}
+      <div className="flex items-center gap-px h-2.5">
+        {/* Left side (negative) — segments rendered right-to-left */}
+        {Array.from({ length: SEGMENTS }, (_, i) => {
+          const segmentValue = -(SEGMENTS - i); // -4, -3, -2, -1
+          const filled = level <= segmentValue;
+          return (
+            <div
+              key={segmentValue}
+              className="flex-1 h-full transition-colors duration-150"
+              style={{
+                background: filled ? "#c8102e" : "#1e1e1e",
+                border: "1px solid #262626",
+              }}
+            />
+          );
+        })}
+
+        {/* Centre marker */}
         <div
-          key={i}
-          className="w-2.5 h-2.5 rounded-full transition-colors duration-150"
-          style={i < level ? { background: "#c8102e" } : { background: "#1e1e1e", border: "1px solid #262626" }}
+          className="w-1 h-full flex-shrink-0"
+          style={{ background: "#3f3f3f" }}
         />
-      ))}
+
+        {/* Right side (positive) */}
+        {Array.from({ length: SEGMENTS }, (_, i) => {
+          const segmentValue = i + 1; // 1, 2, 3, 4
+          const filled = level >= segmentValue;
+          return (
+            <div
+              key={segmentValue}
+              className="flex-1 h-full transition-colors duration-150"
+              style={{
+                background: filled ? "#e2e8f0" : "#1e1e1e",
+                border: "1px solid #262626",
+              }}
+            />
+          );
+        })}
+      </div>
+
+      {/* Level label */}
+      <span
+        className="text-sm font-medium text-slate-300 text-center leading-none"
+        style={{ letterSpacing: "0.04em" }}
+      >
+        {getLevelName(level)}
+      </span>
     </div>
   );
 }
+
+// ── Player thumbnail ──────────────────────────────────────────────────────────
 
 /** Shows uploaded photo if available, otherwise falls back to the player's initials. */
 function PlayerThumb({ player }: { player: Player }) {
@@ -55,6 +124,7 @@ function PlayerThumb({ player }: { player: Player }) {
 
 /**
  * Standalone relationship matrix listing all players with their friendship tier.
+ * Supports levels from -4 (Profundo ódio) to +4 (Grande amigo).
  * Designed to be embedded inside NpcCard.
  */
 export function FriendshipMatrix({ npcId, players, friendships, onFriendshipChange }: FriendshipMatrixProps) {
@@ -70,7 +140,7 @@ export function FriendshipMatrix({ npcId, players, friendships, onFriendshipChan
         Matriz de Amizade
       </p>
 
-      <div className="flex flex-col gap-2.5">
+      <div className="flex flex-col gap-3">
         {players.map((player) => {
           const level = getLevel(player.id);
           return (
@@ -80,32 +150,36 @@ export function FriendshipMatrix({ npcId, players, friendships, onFriendshipChan
 
               {/* Player name */}
               <span
-                className="text-foreground truncate flex-1 min-w-0"
-                style={{ fontSize: "0.68rem" }}
+                className="text-sm font-medium text-foreground truncate flex-shrink-0"
+                style={{ width: "4rem" }}
               >
                 {player.name}
               </span>
 
-              {/* Large-target +/- controls */}
-              <div className="flex items-center gap-1 flex-shrink-0">
-                <button
-                  onClick={() => onFriendshipChange(npcId, player.id, -1)}
-                  disabled={level <= 0}
-                  className="w-8 h-8 flex items-center justify-center border border-border bg-secondary text-foreground hover:border-foreground disabled:opacity-20 disabled:cursor-not-allowed transition-all duration-150 active:scale-95"
-                  style={{ fontFamily: "var(--font-mono)", fontSize: "1rem", fontWeight: 700, lineHeight: 1 }}
-                >
-                  −
-                </button>
-                <FriendshipDots level={level} />
-                <button
-                  onClick={() => onFriendshipChange(npcId, player.id, 1)}
-                  disabled={level >= 4}
-                  className="w-8 h-8 flex items-center justify-center border border-primary bg-primary text-white hover:opacity-80 disabled:opacity-20 disabled:cursor-not-allowed transition-all duration-150 active:scale-95"
-                  style={{ fontFamily: "var(--font-mono)", fontSize: "1rem", fontWeight: 700, lineHeight: 1 }}
-                >
-                  +
-                </button>
+              {/* Minus button */}
+              <button
+                onClick={() => onFriendshipChange(npcId, player.id, -1)}
+                disabled={level <= -4}
+                className="w-8 h-8 flex items-center justify-center border border-border bg-secondary text-foreground hover:border-foreground disabled:opacity-20 disabled:cursor-not-allowed transition-all duration-150 active:scale-95 flex-shrink-0"
+                style={{ fontFamily: "var(--font-mono)", fontSize: "1rem", fontWeight: 700, lineHeight: 1 }}
+              >
+                −
+              </button>
+
+              {/* Bidirectional bar */}
+              <div className="flex-1 min-w-0">
+                <FriendshipBar level={level} />
               </div>
+
+              {/* Plus button */}
+              <button
+                onClick={() => onFriendshipChange(npcId, player.id, 1)}
+                disabled={level >= 4}
+                className="w-8 h-8 flex items-center justify-center border border-primary bg-primary text-white hover:opacity-80 disabled:opacity-20 disabled:cursor-not-allowed transition-all duration-150 active:scale-95 flex-shrink-0"
+                style={{ fontFamily: "var(--font-mono)", fontSize: "1rem", fontWeight: 700, lineHeight: 1 }}
+              >
+                +
+              </button>
             </div>
           );
         })}

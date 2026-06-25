@@ -73,12 +73,28 @@ export default function App() {
           ...npc,
           friendships: npc.friendships.map((f) =>
             f.playerId === playerId
-              ? { ...f, level: Math.max(0, Math.min(4, f.level + delta)) }
+              ? { ...f, level: Math.max(-4, Math.min(4, f.level + delta)) }
               : f
           ),
         };
       })
     );
+  };
+
+  // ── Delete player (also cleans up friendship entries in all NPCs) ─────────────
+  const handleDeletePlayer = (id: number) => {
+    setPlayers((prev) => prev.filter((p) => p.id !== id));
+    setNpcs((prev) =>
+      prev.map((npc) => ({
+        ...npc,
+        friendships: npc.friendships.filter((f) => f.playerId !== id),
+      }))
+    );
+  };
+
+  // ── Delete NPC ───────────────────────────────────────────────────────────────
+  const handleDeleteNpc = (id: number) => {
+    setNpcs((prev) => prev.filter((npc) => npc.id !== id));
   };
 
   // ── Add character (unified handler for both modes) ───────────────────────────
@@ -132,6 +148,7 @@ export default function App() {
                 onPointChange={handlePointChange}
                 onStrikeChange={handleStrikeChange}
                 onImageChange={handleImageChange}
+                onDelete={handleDeletePlayer}
               />
             ))}
 
@@ -162,7 +179,7 @@ export default function App() {
           <SectionHeader
             number="02"
             title="NPCs e Familiares"
-            subtitle={`${npcs.length} entidades — rastreador com matriz de amizade por nível (0–4)`}
+            subtitle={`${npcs.length} entidades — rastreador com matriz de amizade por nível (−4 a +4)`}
           >
             <div className="flex items-center gap-4">
               <MatrixLegend />
@@ -177,6 +194,7 @@ export default function App() {
                 npc={npc}
                 players={players}
                 onFriendshipChange={handleFriendshipChange}
+                onDelete={handleDeleteNpc}
               />
             ))}
             <AddSlot onClick={() => setAddModal("npc")} label="Adicionar NPC / Familiar" minHeight={200} />
@@ -329,15 +347,21 @@ function MatrixLegend() {
   return (
     <div className="hidden lg:flex items-center gap-4">
       <div className="flex items-center gap-1.5">
-        <div className="w-2.5 h-2.5 rounded-full bg-primary" />
+        <div className="w-2.5 h-2.5" style={{ background: "#c8102e" }} />
         <span className="text-muted-foreground" style={{ fontFamily: "var(--font-mono)", fontSize: "0.58rem", letterSpacing: "0.1em" }}>
-          VINCULADO (4)
+          INIMIGO (−4)
         </span>
       </div>
       <div className="flex items-center gap-1.5">
-        <div className="w-2.5 h-2.5 rounded-full border border-border" style={{ background: "#1e1e1e" }} />
+        <div className="w-2.5 h-2.5" style={{ background: "#3f3f3f" }} />
         <span className="text-muted-foreground" style={{ fontFamily: "var(--font-mono)", fontSize: "0.58rem", letterSpacing: "0.1em" }}>
           NEUTRO (0)
+        </span>
+      </div>
+      <div className="flex items-center gap-1.5">
+        <div className="w-2.5 h-2.5" style={{ background: "#e2e8f0" }} />
+        <span className="text-muted-foreground" style={{ fontFamily: "var(--font-mono)", fontSize: "0.58rem", letterSpacing: "0.1em" }}>
+          AMIGO (+4)
         </span>
       </div>
     </div>
