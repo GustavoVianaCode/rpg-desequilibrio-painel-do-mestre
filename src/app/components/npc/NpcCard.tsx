@@ -4,8 +4,7 @@ import { AvatarDropzone } from "../shared/AvatarDropzone";
 import { FriendshipMatrix } from "./FriendshipMatrix";
 import type { Player } from "../player/PlayerCard";
 import type { Friendship } from "./FriendshipMatrix";
-import { mockFamiliars } from "../../../data/initialData";
-import type { NPC, User } from "../../../data/types";
+import type { NPC, User, Familiar } from "../../../data/types";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -26,20 +25,13 @@ import {
  */
 export type Npc = NPC & { friendships: Friendship[] };
 
-// ── Helpers ─────────────────────────────────────────────────────────────────────
+// ── Helpers ────────────────────────────────────────────────────────────
 
-function getFamiliarName(familiarId: string): string {
-  return mockFamiliars.find((f) => f.id === familiarId)?.name ?? "\u2014";
+function getFamiliar(familiarId: string, familiars: Familiar[]): Familiar | undefined {
+  if (familiarId === "none") return undefined;
+  return familiars.find((f) => f.id === familiarId);
 }
 
-function toInitials(name: string): string {
-  return name
-    .trim()
-    .split(/\s+/)
-    .slice(0, 2)
-    .map((w) => w[0]?.toUpperCase() ?? "")
-    .join("");
-}
 
 interface NpcCardProps {
   npc: Npc;
@@ -50,6 +42,12 @@ interface NpcCardProps {
   currentUser: User | null;
   /** ID do personagem ativo (usado pela FriendshipMatrix). */
   activeCharacterId: string | null;
+  /** Lista dinâmica de familiares (estado global do App). */
+  familiars: Familiar[];
+  /** Callback para atualizar a imageUrl de um familiar no estado global. */
+  onFamiliarImageChange: (familiarId: string, dataUrl: string) => void;
+  /** Cria um novo familiar e vincula ao NPC (usado quando familiarId === "none"). */
+  onCreateAndLinkFamiliar: (characterId: string, isNpc: boolean, familiarName: string, imageUrl?: string) => void;
 }
 
 // ── Subject Badge ────────────────────────────────────────────────────────────
@@ -97,8 +95,8 @@ function BlendedSubjectBadge({ roles }: { roles: SubjectProps[] }) {
 
 // ── Data fields list ──────────────────────────────────────────────────────────
 
-const SIMPLE_FIELD_KEYS: { label: string; getValue: (npc: Npc) => string }[] = [
-  { label: "Nome do Familiar", getValue: (npc) => getFamiliarName(npc.familiarId) },
+const SIMPLE_FIELD_KEYS: { label: string; getValue: (npc: Npc, familiars: Familiar[]) => string }[] = [
+  { label: "Nome do Familiar", getValue: (npc, familiars) => getFamiliar(npc.familiarId, familiars)?.name ?? "Nenhum" },
   { label: "Dormitório",       getValue: (npc) => npc.dormitory                   },
 ];
 
@@ -108,10 +106,12 @@ const SIMPLE_FIELD_KEYS: { label: string; getValue: (npc: Npc) => string }[] = [
  * Card displaying an NPC or Familiar with their avatar pair,
  * static data fields, and the interactive FriendshipMatrix.
  */
-export function NpcCard({ npc, players, onFriendshipChange, onDelete, currentUser, activeCharacterId }: NpcCardProps) {
+export function NpcCard({ npc, players, onFriendshipChange, onDelete, currentUser, activeCharacterId, familiars, onFamiliarImageChange, onCreateAndLinkFamiliar }: NpcCardProps) {
   const [confirmOpen, setConfirmOpen] = useState(false);
-  // Resolve iniciais do familiar pelo ID para exibição no avatar
-  const familiarInitials = toInitials(getFamiliarName(npc.familiarId));
+  // Resolve o objeto familiar completo (nome + imageUrl) pelo ID
+  const familiar         = getFamiliar(npc.familiarId, familiars);
+  const hasFamiliar      = !!familiar;
+  const familiarInitials = familiar ? familiar.name.trim().split(/\s+/).slice(0, 2).map((w) => w[0]?.toUpperCase() ?? "").join("") : "";
 
   return (
     <>
@@ -179,17 +179,48 @@ export function NpcCard({ npc, players, onFriendshipChange, onDelete, currentUse
           <AvatarDropzone initials={npc.initials} size={120} />
         </div>
 
-        <div className="absolute bottom-0 right-0 flex flex-col items-center gap-0.5">
-          <div className="rounded-full" style={{ padding: 2, background: "#141414" }}>
-            <AvatarDropzone initials={familiarInitials} size={46} />
+        {/* Familiar avatar — visível apenas quando há familiar */}
+        {hasFamiliar ? (
+          <div className="absolute bottom-0 right-0 flex flex-col items-center gap-0.5">
+            <div className="rounded-full" style={{ padding: 2, background: "#141414" }}>
+              <AvatarDropzone
+                initials={familiarInitials}
+                size={46}
+                imageUrl={familiar?.imageUrl}
+                onImageChange={(dataUrl) => onFamiliarImageChange(npc.familiarId, dataUrl)}
+              />
+            </div>
+            <span
+              className="text-muted-foreground leading-none"
+              style={{ fontFamily: "var(--font-body)", fontSize: "0.48rem", letterSpacing: "0.12em", textTransform: "uppercase" }}
+            >
+              Familiar
+            </span>
           </div>
-          <span
-            className="text-muted-foreground leading-none"
-            style={{ fontFamily: "var(--font-body)", fontSize: "0.48rem", letterSpacing: "0.12em", textTransform: "uppercase" }}
-          >
-            Familiar
-          </span>
-        </div>
+        ) : (
+          // familiarId === "none": slot interativo para criar um familiar on-the-fly
+          <div className="absolute bottom-0 right-0 flex flex-col items-center gap-0.5">
+            <div className="rounded-full" style={{ padding: 2, background: "#141414" }}>
+              <AvatarDropzone
+                initials=""
+                size={46}
+                onImageChange={(dataUrl) => {
+                  const name = window.prompt("Digite o nome do novo familiar:");
+                  if (name && name.trim()) {
+                    onCreateAndLinkFamiliar(npc.id, true, name.trim(), dataUrl);
+                  }
+                }}
+                dimmed
+              />
+            </div>
+            <span
+              className="text-muted-foreground leading-none"
+              style={{ fontFamily: "var(--font-body)", fontSize: "0.48rem", letterSpacing: "0.12em", textTransform: "uppercase" }}
+            >
+              Familiar
+            </span>
+          </div>
+        )}
       </div>
 
       {/* Nome */}
@@ -216,7 +247,7 @@ export function NpcCard({ npc, players, onFriendshipChange, onDelete, currentUse
               className="text-sm font-medium text-white text-right"
               style={{ fontFamily: "var(--font-body)" }}
             >
-              {getValue(npc)}
+              {getValue(npc, familiars)}
             </span>
           </div>
         ))}

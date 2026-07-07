@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { X, UserPlus, PawPrint, ShieldCheck } from "lucide-react";
 import type { User, Familiar } from "../../../data/types";
+import { AvatarDropzone } from "./AvatarDropzone";
 
 // ── Props ─────────────────────────────────────────────────────────────────────
 
@@ -245,8 +246,9 @@ function RegisterPlayerForm({ onSubmit }: { onSubmit: (user: User) => void }) {
 // ── Register Familiar form ────────────────────────────────────────────────────
 
 function RegisterFamiliarForm({ onSubmit }: { onSubmit: (familiar: Familiar) => void }) {
-  const [name, setName]       = useState("");
-  const [success, setSuccess] = useState<string | null>(null);
+  const [name, setName]               = useState("");
+  const [familiarImage, setFamiliarImage] = useState<string | null>(null);
+  const [success, setSuccess]         = useState<string | null>(null);
 
   const handle = (e: React.FormEvent) => {
     e.preventDefault();
@@ -256,11 +258,13 @@ function RegisterFamiliarForm({ onSubmit }: { onSubmit: (familiar: Familiar) => 
     const familiar: Familiar = {
       id: newId("fam"),
       name: trimmed,
+      ...(familiarImage ? { imageUrl: familiarImage } : {}),
     };
 
     onSubmit(familiar);
     setSuccess(`Familiar "${trimmed}" cadastrado com sucesso!`);
     setName("");
+    setFamiliarImage(null);
     setTimeout(() => setSuccess(null), 3000);
   };
 
@@ -273,6 +277,32 @@ function RegisterFamiliarForm({ onSubmit }: { onSubmit: (familiar: Familiar) => 
         Registre um familiar. Ele aparecerá no seletor "Familiar" ao criar
         personagens (Jogadores ou NPCs).
       </p>
+
+      {/* Avatar do Familiar */}
+      <div className="flex flex-col items-center gap-2">
+        <label
+          className="text-muted-foreground self-start"
+          style={{
+            fontFamily: "var(--font-body)",
+            fontSize: "0.62rem",
+            letterSpacing: "0.16em",
+            textTransform: "uppercase",
+          }}
+        >
+          Imagem do Familiar
+        </label>
+        <AvatarDropzone
+          initials={name.trim() ? name.trim()[0].toUpperCase() : "?"}
+          size={88}
+          onImageChange={(dataUrl) => setFamiliarImage(dataUrl)}
+        />
+        <span
+          className="text-muted-foreground"
+          style={{ fontFamily: "var(--font-body)", fontSize: "0.6rem", opacity: 0.7 }}
+        >
+          Clique ou arraste uma imagem
+        </span>
+      </div>
 
       <FormField
         label="Nome do Familiar *"

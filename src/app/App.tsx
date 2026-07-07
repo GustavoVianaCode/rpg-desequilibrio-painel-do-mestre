@@ -102,6 +102,34 @@ function AppInner() {
     );
   };
 
+  // ── Familiar avatar upload ────────────────────────────────────────────────────
+  const handleFamiliarImageChange = (familiarId: string, dataUrl: string) => {
+    setFamiliars((prev) =>
+      prev.map((f) => (f.id === familiarId ? { ...f, imageUrl: dataUrl } : f))
+    );
+  };
+
+  // ── Create + link a new familiar on-the-fly (via card dropzone) ──────────────
+  const handleCreateAndLinkFamiliar = (
+    characterId: string,
+    isNpc: boolean,
+    familiarName: string,
+    imageUrl?: string,
+  ) => {
+    const newFamiliarId = `fam-${Date.now()}`;
+    const newFamiliar: Familiar = { id: newFamiliarId, name: familiarName, imageUrl };
+    setFamiliars((prev) => [...prev, newFamiliar]);
+    if (isNpc) {
+      setNpcs((prev) =>
+        prev.map((n) => (n.id === characterId ? { ...n, familiarId: newFamiliarId } : n))
+      );
+    } else {
+      setPlayers((prev) =>
+        prev.map((p) => (p.id === characterId ? { ...p, familiarId: newFamiliarId } : p))
+      );
+    }
+  };
+
   // ── Friendship matrix ────────────────────────────────────────────────────────
   const handleFriendshipChange = (npcId: string, playerId: string, delta: number) => {
     setNpcs((prev) =>
@@ -221,9 +249,12 @@ function AppInner() {
                 onPointChange={handlePointChange}
                 onStrikeChange={handleStrikeChange}
                 onImageChange={handleImageChange}
+                onFamiliarImageChange={handleFamiliarImageChange}
+                onCreateAndLinkFamiliar={handleCreateAndLinkFamiliar}
                 onDelete={handleDeletePlayer}
                 currentUser={currentUser}
                 users={users}
+                familiars={familiars}
               />
             ))}
 
@@ -287,6 +318,9 @@ function AppInner() {
                 onDelete={handleDeleteNpc}
                 currentUser={currentUser}
                 activeCharacterId={activeCharacterId}
+                familiars={familiars}
+                onFamiliarImageChange={handleFamiliarImageChange}
+                onCreateAndLinkFamiliar={handleCreateAndLinkFamiliar}
               />
             ))}
             {/* Slot de adicionar NPC — oculto para PLAYERs */}

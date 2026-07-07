@@ -1,10 +1,17 @@
 import { useState, useRef } from "react";
-import { Camera, Upload } from "lucide-react";
+import { Camera, Upload, PawPrint } from "lucide-react";
 
 interface AvatarDropzoneProps {
   initials: string;
   size?: number;
   onImageChange?: (dataUrl: string) => void;
+  /** URL de imagem controlada externamente (ex: imageUrl do familiar salvo no estado global). */
+  imageUrl?: string;
+  /**
+   * Quando true, o dropzone exibe o estado "sem familiar" (opacidade reduzida, ícone de pata).
+   * Ainda é interativo — hover revela o overlay de câmera para indicar que é clicável.
+   */
+  dimmed?: boolean;
 }
 
 /**
@@ -14,11 +21,14 @@ interface AvatarDropzoneProps {
  * Uses a depth counter instead of a boolean flag to avoid flickering when
  * the pointer moves over child elements inside the dropzone.
  */
-export function AvatarDropzone({ initials, size = 96, onImageChange }: AvatarDropzoneProps) {
-  const [imageUrl, setImageUrl]   = useState<string | null>(null);
+export function AvatarDropzone({ initials, size = 96, onImageChange, imageUrl: externalImageUrl, dimmed = false }: AvatarDropzoneProps) {
+  const [localImageUrl, setLocalImageUrl] = useState<string | null>(null);
   const [dragDepth, setDragDepth] = useState(0);   // >0 means actively dragging over this zone
   const [isHovering, setIsHovering] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // Prefer the locally uploaded image; fall back to externally supplied URL
+  const imageUrl = localImageUrl ?? externalImageUrl ?? null;
 
   const isDragging    = dragDepth > 0;
   const hasImage      = imageUrl !== null;
@@ -33,7 +43,7 @@ export function AvatarDropzone({ initials, size = 96, onImageChange }: AvatarDro
     const reader = new FileReader();
     reader.onload = (ev) => {
       const url = ev.target?.result as string;
-      setImageUrl(url);
+      setLocalImageUrl(url);
       onImageChange?.(url);
     };
     reader.readAsDataURL(file);
@@ -46,6 +56,8 @@ export function AvatarDropzone({ initials, size = 96, onImageChange }: AvatarDro
     ? { border: "2px solid rgba(200, 16, 46, 0.55)" }
     : hasImage
     ? { border: "2px solid #262626" }
+    : dimmed
+    ? { border: "2px dashed #3a3a3a", opacity: isHovering ? 1 : 0.3 }
     : { border: "2px dashed #3a3a3a" };
 
   return (
@@ -78,12 +90,20 @@ export function AvatarDropzone({ initials, size = 96, onImageChange }: AvatarDro
       {/* Initials fallback */}
       {!hasImage && (
         <div className="absolute inset-0 flex items-center justify-center">
-          <span
-            className="text-foreground"
-            style={{ fontFamily: "var(--font-display)", fontSize: initialsSize, fontWeight: 700, letterSpacing: "0.04em" }}
-          >
-            {initials}
-          </span>
+          {dimmed && !showOverlay ? (
+            <PawPrint
+              size={Math.max(10, Math.round(size * 0.32))}
+              strokeWidth={1.5}
+              style={{ color: "#6a6a6a" }}
+            />
+          ) : (
+            <span
+              className="text-foreground"
+              style={{ fontFamily: "var(--font-display)", fontSize: initialsSize, fontWeight: 700, letterSpacing: "0.04em" }}
+            >
+              {initials}
+            </span>
+          )}
         </div>
       )}
 

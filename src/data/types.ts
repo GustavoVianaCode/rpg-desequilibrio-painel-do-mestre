@@ -28,6 +28,7 @@ export interface SubjectProps {
 export interface Familiar {
   id: string;
   name: string;
+  imageUrl?: string;
 }
 
 // ── Vínculo de relacionamento (tabela associativa) ────────────────────────────

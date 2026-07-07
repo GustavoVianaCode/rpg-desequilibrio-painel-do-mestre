@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { X, Trash2, Castle, PawPrint, Gamepad2, Sparkles } from "lucide-react";
 import { AvatarDropzone } from "../shared/AvatarDropzone";
-import { MAX_STRIKES, mockFamiliars } from "../../../data/initialData";
-import type { PlayerCharacter, SubjectProps, User } from "../../../data/types";
+import { MAX_STRIKES } from "../../../data/initialData";
+import type { PlayerCharacter, SubjectProps, User, Familiar } from "../../../data/types";
 import { getBlendedColor, getBlendedLabel } from "../../../utils/subjectUtils";
 import {
   AlertDialog,
@@ -24,10 +24,11 @@ import {
  */
 export type Player = PlayerCharacter;
 
-// ── Helper: resolve o nome do familiar pelo ID ────────────────────────────────
+// ── Helper: resolve o familiar completo pelo ID ───────────────────────────────
 
-function useFamiliarName(familiarId: string): string {
-  return mockFamiliars.find((f) => f.id === familiarId)?.name ?? "—";
+function useFamiliar(familiarId: string, familiars: Familiar[]): Familiar | undefined {
+  if (familiarId === "none") return undefined;
+  return familiars.find((f) => f.id === familiarId);
 }
 
 /** Gera iniciais a partir do nome (máx. 2 letras). */
@@ -89,6 +90,12 @@ interface PlayerCardProps {
   currentUser: User | null;
   /** Lista completa de usuários para resolução do nome do controlador. */
   users: User[];
+  /** Lista dinâmica de familiares (estado global do App). */
+  familiars: Familiar[];
+  /** Callback para atualizar a imageUrl de um familiar no estado global. */
+  onFamiliarImageChange: (familiarId: string, dataUrl: string) => void;
+  /** Cria um novo familiar e vincula ao personagem (usado quando familiarId === "none"). */
+  onCreateAndLinkFamiliar: (characterId: string, isNpc: boolean, familiarName: string, imageUrl?: string) => void;
 }
 
 // ── Strike row ────────────────────────────────────────────────────────────────
@@ -200,16 +207,21 @@ export function PlayerCard({
   onPointChange,
   onStrikeChange,
   onImageChange,
+  onFamiliarImageChange,
+  onCreateAndLinkFamiliar,
   onDelete,
   currentUser,
   users,
+  familiars,
 }: PlayerCardProps) {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const isPlayer = currentUser?.role === "PLAYER";
 
-  // Resolve o nome do familiar pelo ID para exibição na UI
-  const familiarName     = useFamiliarName(player.familiarId);
-  const familiarInitials = toInitials(familiarName);
+  // Resolve o objeto familiar completo (nome + imageUrl) a partir da lista dinâmica
+  const familiar         = useFamiliar(player.familiarId, familiars);
+  const hasFamiliar      = !!familiar;
+  const familiarInitials = familiar ? toInitials(familiar.name) : "";
+  const familiarName     = familiar?.name ?? "Nenhum";
 
   // Resolve o nome do jogador controlador pelo playerId
   const controllerName = users.find((u) => u.id === player.playerId)?.name ?? "—";
@@ -331,17 +343,48 @@ export function PlayerCard({
             />
           </div>
 
-          <div className="absolute bottom-0 right-0 flex flex-col items-center gap-0.5">
-            <div className="rounded-full" style={{ padding: 2, background: "#141414" }}>
-              <AvatarDropzone initials={familiarInitials} size={52} />
+          {/* Familiar avatar — oculto quando não há familiar */}
+          {hasFamiliar ? (
+            <div className="absolute bottom-0 right-0 flex flex-col items-center gap-0.5">
+              <div className="rounded-full" style={{ padding: 2, background: "#141414" }}>
+                <AvatarDropzone
+                  initials={familiarInitials}
+                  size={52}
+                  imageUrl={familiar?.imageUrl}
+                  onImageChange={(dataUrl) => onFamiliarImageChange(player.familiarId, dataUrl)}
+                />
+              </div>
+              <span
+                className="text-muted-foreground leading-none"
+                style={{ fontFamily: "var(--font-body)", fontSize: "0.48rem", letterSpacing: "0.12em", textTransform: "uppercase" }}
+              >
+                Familiar
+              </span>
             </div>
-            <span
-              className="text-muted-foreground leading-none"
-              style={{ fontFamily: "var(--font-body)", fontSize: "0.48rem", letterSpacing: "0.12em", textTransform: "uppercase" }}
-            >
-              Familiar
-            </span>
-          </div>
+          ) : (
+            // familiarId === "none": slot interativo para criar um familiar on-the-fly
+            <div className="absolute bottom-0 right-0 flex flex-col items-center gap-0.5">
+              <div className="rounded-full" style={{ padding: 2, background: "#141414" }}>
+                <AvatarDropzone
+                  initials=""
+                  size={52}
+                  onImageChange={(dataUrl) => {
+                    const name = window.prompt("Digite o nome do novo familiar:");
+                    if (name && name.trim()) {
+                      onCreateAndLinkFamiliar(player.id, false, name.trim(), dataUrl);
+                    }
+                  }}
+                  dimmed
+                />
+              </div>
+              <span
+                className="text-muted-foreground leading-none"
+                style={{ fontFamily: "var(--font-body)", fontSize: "0.48rem", letterSpacing: "0.12em", textTransform: "uppercase" }}
+              >
+                Familiar
+              </span>
+            </div>
+          )}
         </div>
 
         {/* Nome */}
@@ -355,7 +398,7 @@ export function PlayerCard({
         </div>
 
         {/* Subject badge mesclado (role[]) */}
-        {player.role.length > 0 && (
+        {(player.role?.length ?? 0) > 0 && (
           <div className="flex flex-wrap gap-1 justify-center">
             <BlendedSubjectBadge roles={player.role} />
           </div>
@@ -380,13 +423,11 @@ export function PlayerCard({
           )}
 
           {/* Familiar */}
-          {familiarName && familiarName !== "Nenhum Familiar" && (
-            <InfoRow
-              icon={<PawPrint size={10} strokeWidth={2} />}
-              label="Familiar"
-              value={familiarName}
-            />
-          )}
+          <InfoRow
+            icon={<PawPrint size={10} strokeWidth={2} />}
+            label="Familiar"
+            value={familiarName}
+          />
 
           {/* Controlado por */}
           <InfoRow
