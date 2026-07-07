@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Trash2 } from "lucide-react";
+import { Trash2, Sparkles, Award } from "lucide-react";
 import { AvatarDropzone } from "../shared/AvatarDropzone";
 import { FriendshipMatrix } from "./FriendshipMatrix";
 import type { Player } from "../player/PlayerCard";
@@ -48,12 +48,14 @@ interface NpcCardProps {
   onFamiliarImageChange: (familiarId: string, dataUrl: string) => void;
   /** Cria um novo familiar e vincula ao NPC (usado quando familiarId === "none"). */
   onCreateAndLinkFamiliar: (characterId: string, isNpc: boolean, familiarName: string, imageUrl?: string) => void;
+  /** Alterna se o personagem ganhou/exibe a marca */
+  onToggleMark: (characterId: string, isNpc: boolean) => void;
 }
 
 // ── Subject Badge ────────────────────────────────────────────────────────────
 
 import type { SubjectProps } from "../../../data/types";
-import { getBlendedColor, getBlendedLabel } from "../../../utils/subjectUtils";
+import { getBlendedColor, getBlendedLabel, getMarkUrl } from "../../../utils/subjectUtils";
 
 // Paleta de estilos compartilhada por cor final (pura ou mesclada)
 const SUBJECT_STYLES: Record<SubjectProps["color"], { bg: string; text: string }> = {
@@ -106,12 +108,17 @@ const SIMPLE_FIELD_KEYS: { label: string; getValue: (npc: Npc, familiars: Famili
  * Card displaying an NPC or Familiar with their avatar pair,
  * static data fields, and the interactive FriendshipMatrix.
  */
-export function NpcCard({ npc, players, onFriendshipChange, onDelete, currentUser, activeCharacterId, familiars, onFamiliarImageChange, onCreateAndLinkFamiliar }: NpcCardProps) {
+export function NpcCard({ npc, players, onFriendshipChange, onDelete, onToggleMark, currentUser, activeCharacterId, familiars, onFamiliarImageChange, onCreateAndLinkFamiliar }: NpcCardProps) {
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [hasMarkError, setHasMarkError] = useState(false);
   // Resolve o objeto familiar completo (nome + imageUrl) pelo ID
   const familiar         = getFamiliar(npc.familiarId, familiars);
   const hasFamiliar      = !!familiar;
   const familiarInitials = familiar ? familiar.name.trim().split(/\s+/).slice(0, 2).map((w) => w[0]?.toUpperCase() ?? "").join("") : "";
+
+  // URL dinâmica da marca de matéria
+  const markUrl      = getMarkUrl(npc.role);
+  const blendedColor = getBlendedColor(npc.role);
 
   return (
     <>
@@ -155,6 +162,20 @@ export function NpcCard({ npc, players, onFriendshipChange, onDelete, currentUse
         {/* Top accent rule */}
         <div className="absolute top-0 left-0 right-0 h-[2px] bg-primary" />
 
+        {/* Toggle Mark button — apenas para GM */}
+        {currentUser?.role === "GM" && (
+          <button
+            onClick={() => onToggleMark(npc.id, true)}
+            className={[
+              "absolute top-3 right-9 w-6 h-6 flex items-center justify-center transition-colors duration-150 z-10",
+              npc.hasEarnedMark ? "text-amber-500 hover:text-amber-400" : "text-muted-foreground hover:text-foreground"
+            ].join(" ")}
+            title={npc.hasEarnedMark ? "Remover Marca" : "Conceder Marca"}
+          >
+            <Award size={15} strokeWidth={2} />
+          </button>
+        )}
+
         {/* Delete button — oculto para PLAYERs */}
         {currentUser?.role !== "PLAYER" && (
           <button
@@ -167,22 +188,59 @@ export function NpcCard({ npc, players, onFriendshipChange, onDelete, currentUse
         )}
 
       {/*
-       * Avatar group — 136 × 150 px container.
-       * Main avatar (120 px) anchored top-left.
-       * Familiar (46 px) + label anchored bottom-right, overlapping main's corner.
+       * Avatar group — 172 × 166 px container.
+       * Main avatar (120 px) anchored top-center (offset so both sides fit).
+       * Marca (46 px) anchored bottom-left, Familiar (46 px) bottom-right.
        */}
       <div
         className="relative flex-shrink-0 mt-6 mx-auto"
-        style={{ width: 136, height: 150 }}
+        style={{ width: 172, height: 166 }}
       >
-        <div className="absolute top-0 left-0">
+        <div className="absolute top-0" style={{ left: 26 }}>
           <AvatarDropzone initials={npc.initials} size={120} />
         </div>
+
+        {/* ── Marca de Matéria — extrema esquerda, espelhando o familiar ─── */}
+        {npc.hasEarnedMark && (
+          <div className="absolute bottom-0 left-0 flex flex-col items-center gap-0.5">
+            {/* Anel escuro: padding 2 fixo + conteúdo 46×46 = 50×50 total */}
+            <div
+              className="rounded-full flex-shrink-0"
+              style={{ padding: 2, background: "#141414", width: 50, height: 50, boxSizing: "border-box" }}
+            >
+              {!hasMarkError ? (
+                <img
+                  src={markUrl}
+                  alt="Marca da matéria"
+                  onError={() => setHasMarkError(true)}
+                  style={{ width: 42, height: 42, borderRadius: "50%", objectFit: "cover", display: "block", margin: 2 }}
+                />
+              ) : (
+                <div
+                  className="rounded-full flex items-center justify-center"
+                  style={{ width: 42, height: 42, background: SUBJECT_STYLES[blendedColor].bg, margin: 2 }}
+                >
+                  <Sparkles size={16} style={{ color: SUBJECT_STYLES[blendedColor].text, opacity: 0.7 }} strokeWidth={1.5} />
+                </div>
+              )}
+            </div>
+            <span
+              className="text-muted-foreground leading-none"
+              style={{ fontFamily: "var(--font-body)", fontSize: "0.48rem", letterSpacing: "0.12em", textTransform: "uppercase", marginTop: 2 }}
+            >
+              Marca
+            </span>
+          </div>
+        )}
 
         {/* Familiar avatar — visível apenas quando há familiar */}
         {hasFamiliar ? (
           <div className="absolute bottom-0 right-0 flex flex-col items-center gap-0.5">
-            <div className="rounded-full" style={{ padding: 2, background: "#141414" }}>
+            {/* Anel escuro: padding 2 fixo + conteúdo 46×46 = 50×50 total */}
+            <div
+              className="rounded-full flex-shrink-0"
+              style={{ padding: 2, background: "#141414", width: 50, height: 50, boxSizing: "border-box" }}
+            >
               <AvatarDropzone
                 initials={familiarInitials}
                 size={46}
@@ -192,7 +250,7 @@ export function NpcCard({ npc, players, onFriendshipChange, onDelete, currentUse
             </div>
             <span
               className="text-muted-foreground leading-none"
-              style={{ fontFamily: "var(--font-body)", fontSize: "0.48rem", letterSpacing: "0.12em", textTransform: "uppercase" }}
+              style={{ fontFamily: "var(--font-body)", fontSize: "0.48rem", letterSpacing: "0.12em", textTransform: "uppercase", marginTop: 2 }}
             >
               Familiar
             </span>
@@ -200,7 +258,11 @@ export function NpcCard({ npc, players, onFriendshipChange, onDelete, currentUse
         ) : (
           // familiarId === "none": slot interativo para criar um familiar on-the-fly
           <div className="absolute bottom-0 right-0 flex flex-col items-center gap-0.5">
-            <div className="rounded-full" style={{ padding: 2, background: "#141414" }}>
+            {/* Anel escuro: padding 2 fixo + conteúdo 46×46 = 50×50 total */}
+            <div
+              className="rounded-full flex-shrink-0"
+              style={{ padding: 2, background: "#141414", width: 50, height: 50, boxSizing: "border-box" }}
+            >
               <AvatarDropzone
                 initials=""
                 size={46}
@@ -215,7 +277,7 @@ export function NpcCard({ npc, players, onFriendshipChange, onDelete, currentUse
             </div>
             <span
               className="text-muted-foreground leading-none"
-              style={{ fontFamily: "var(--font-body)", fontSize: "0.48rem", letterSpacing: "0.12em", textTransform: "uppercase" }}
+              style={{ fontFamily: "var(--font-body)", fontSize: "0.48rem", letterSpacing: "0.12em", textTransform: "uppercase", marginTop: 2 }}
             >
               Familiar
             </span>

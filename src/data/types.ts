@@ -59,6 +59,7 @@ export interface PlayerCharacter {
   playerId: string;
   /** ID referenciando a tabela Familiar. */
   familiarId: string;
+  hasEarnedMark: boolean;
 }
 
 // ── NPC / Familiar ────────────────────────────────────────────────────────────
@@ -80,4 +81,5 @@ export interface NPC {
    * Campo de UI; será normalizado na Fase 2.
    */
   type?: string;
+  hasEarnedMark: boolean;
 }

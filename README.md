@@ -1,4 +1,4 @@
-﻿# ⚔️ Academia Aequilibrium — Painel do Mestre
+# ⚔️ Academia Aequilibrium — Painel do Mestre
 
 > Painel de controle em tempo real para mestre de RPG de mesa — **DESEQUILÍBRIO**.
 > Desenvolvido com React, TypeScript e Vite. Design: Dark Mode estrito com glassmorphism.
@@ -86,6 +86,7 @@ interface User {
 | Editar amizades de qualquer jogador     | ✅  | ❌                   |
 | Editar **própria** amizade com NPCs     | ✅  | ✅                   |
 | Acessar Painel Administrativo           | ✅  | ❌                   |
+| Alterar status de `hasEarnedMark`       | ✅  | ❌                   |
 
 ---
 
@@ -186,8 +187,25 @@ interface PlayerCharacter {
   role: SubjectProps[];    
   playerId: string;        
   familiarId: string;      
+  hasEarnedMark: boolean;  
 }
 ```
+
+#### Tabela Descritiva dos Campos:
+
+| Campo | Tipo | Descrição |
+|-------|------|-----------|
+| `id` | `string` | Identificador único do personagem. |
+| `name` | `string` | Nome do personagem. |
+| `initials` | `string` | Iniciais do personagem (usadas na UI). |
+| `points` | `number` | Pontos do personagem em tempo real. |
+| `strikes` | `number` | Quantidade de Marcas de Falha (limite de 4). |
+| `dormitory` | `string` | Dormitório do personagem (ex: "Torre Norte"). |
+| `imageUrl` | `string` (opcional) | URL da imagem do avatar. |
+| `role` | `SubjectProps[]` | Array contendo as matérias cursadas (1 a 2). |
+| `playerId` | `string` | ID do usuário (`User`) dono do personagem. |
+| `familiarId` | `string` | ID do familiar de suporte vinculado (ou `"none"`). |
+| `hasEarnedMark` | `boolean` | Indica se o personagem conquistou a exibição de suas Marcas de Disciplina. |
 
 **Exemplo de payload JSON (resposta da API):**
 
@@ -213,7 +231,8 @@ interface PlayerCharacter {
     }
   ],
   "playerId": "user-duda",
-  "familiarId": "fam-xyz789"
+  "familiarId": "fam-xyz789",
+  "hasEarnedMark": false
 }
 ```
 
@@ -222,6 +241,8 @@ interface PlayerCharacter {
 - Quando `points` cruza de positivo para `<= 0`, o front-end **automaticamente adiciona 1 strike**. O back-end deve persistir esse valor atualizado.
 - `strikes` é limitado a `MAX_STRIKES = 4`.
 - O campo `playerId` é obrigatório e deve referenciar um `User` com `role: "PLAYER"`. Constraint `UNIQUE` necessária: um `User` pode ter no máximo **um** `PlayerCharacter` ativo.
+- **Regra de Negócio de `hasEarnedMark`:** O campo `hasEarnedMark` deve ser inicializado como `false` por padrão no banco de dados ao criar um novo personagem.
+- **Persistência de `hasEarnedMark`:** Este campo é vital para o storytelling da sessão e deve ser persistido em requisições de `PATCH`. Apenas o papel "GM" tem permissão para alterar o status de `hasEarnedMark`.
 
 **Payload de criação (POST):**
 
@@ -232,7 +253,8 @@ interface PlayerCharacter {
   "dormitory": "Torre Norte",
   "playerId": "user-duda",
   "familiarId": "fam-xyz789",
-  "role": ["subj-05", "subj-09"]
+  "role": ["subj-05", "subj-09"],
+  "hasEarnedMark": false
 }
 ```
 
@@ -259,8 +281,29 @@ interface NPC {
   role: SubjectProps[];    // Array de 1 ou 2 matérias (nunca string)
   familiarId: string;
   type?: string;
+  hasEarnedMark: boolean;  
 }
 ```
+
+#### Tabela Descritiva dos Campos:
+
+| Campo | Tipo | Descrição |
+|-------|------|-----------|
+| `id` | `string` | Identificador único do NPC. |
+| `name` | `string` | Nome do NPC. |
+| `initials` | `string` | Iniciais do NPC. |
+| `points` | `number` | Pontos do NPC. |
+| `strikes` | `number` | Quantidade de Marcas de Falha (limite de 4). |
+| `dormitory` | `string` | Dormitório do NPC. |
+| `imageUrl` | `string` (opcional) | URL da imagem do avatar. |
+| `role` | `SubjectProps[]` | Array contendo as matérias cursadas (1 a 2). |
+| `familiarId` | `string` | ID do familiar de suporte vinculado (ou `"none"`). |
+| `type` | `string` (opcional) | Categoria/função do NPC (ex: "Professor", "Guardião"). |
+| `hasEarnedMark` | `boolean` | Indica se o NPC conquistou a exibição de suas Marcas de Disciplina. |
+
+**Regras de negócio:**
+- **Regra de Negócio de `hasEarnedMark`:** O campo `hasEarnedMark` deve ser inicializado como `false` por padrão no banco de dados ao criar um novo NPC.
+- **Persistência de `hasEarnedMark`:** Este campo é vital para o storytelling da sessão e deve ser persistido em requisições de `PATCH`. Apenas o papel "GM" tem permissão para alterar o status de `hasEarnedMark`.
 
 ---
 
@@ -406,7 +449,8 @@ Abaixo está um exemplo de payload completo para recuperar o estado ativo de uma
         }
       ],
       "playerId": "user-duda",
-      "familiarId": "fam-xyz789"
+      "familiarId": "fam-xyz789",
+      "hasEarnedMark": false
     }
   ],
   "npcs": [
@@ -426,7 +470,8 @@ Abaixo está um exemplo de payload completo para recuperar o estado ativo de uma
         }
       ],
       "familiarId": "fam-lm123",
-      "type": "Professor"
+      "type": "Professor",
+      "hasEarnedMark": true
     }
   ],
   "relationships": [

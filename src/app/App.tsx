@@ -163,6 +163,19 @@ function AppInner() {
     setNpcs((prev) => prev.filter((npc) => npc.id !== id));
   };
 
+  // ── Toggle Discipline Mark (GM only toggle function) ──────────────────────────
+  const handleToggleMark = (characterId: string, isNpc: boolean) => {
+    if (isNpc) {
+      setNpcs((prev) =>
+        prev.map((n) => (n.id === characterId ? { ...n, hasEarnedMark: !n.hasEarnedMark } : n))
+      );
+    } else {
+      setPlayers((prev) =>
+        prev.map((p) => (p.id === characterId ? { ...p, hasEarnedMark: !p.hasEarnedMark } : p))
+      );
+    }
+  };
+
   // ── Admin: register a new player account (GM only) ───────────────────────────
   const handleAddUser = (user: User) => {
     setUsers((prev) => [...prev, user]);
@@ -188,6 +201,7 @@ function AppInner() {
         strikes: 0,
         role: Array.isArray(data.role) ? (data.role as Player["role"]) : [],
         playerId: String(data.playerId ?? "user-guest"),
+        hasEarnedMark: false,
       };
       setPlayers((prev) => [...prev, newPlayer]);
       // Registra este novo jogador em todos os NPCs existentes
@@ -211,6 +225,7 @@ function AppInner() {
         dormitory: String(data.dormitory ?? "—"),
         role: Array.isArray(data.role) ? (data.role as Npc["role"]) : [],
         friendships,
+        hasEarnedMark: false,
       };
       setNpcs((prev) => [...prev, newNpc]);
     }
@@ -252,6 +267,7 @@ function AppInner() {
                 onFamiliarImageChange={handleFamiliarImageChange}
                 onCreateAndLinkFamiliar={handleCreateAndLinkFamiliar}
                 onDelete={handleDeletePlayer}
+                onToggleMark={handleToggleMark}
                 currentUser={currentUser}
                 users={users}
                 familiars={familiars}
@@ -316,6 +332,7 @@ function AppInner() {
                 players={players}
                 onFriendshipChange={handleFriendshipChange}
                 onDelete={handleDeleteNpc}
+                onToggleMark={handleToggleMark}
                 currentUser={currentUser}
                 activeCharacterId={activeCharacterId}
                 familiars={familiars}

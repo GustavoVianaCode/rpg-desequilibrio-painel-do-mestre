@@ -1,9 +1,9 @@
 import { useState } from "react";
-import { X, Trash2, Castle, PawPrint, Gamepad2, Sparkles } from "lucide-react";
+import { X, Trash2, Castle, PawPrint, Gamepad2, Sparkles, Award } from "lucide-react";
 import { AvatarDropzone } from "../shared/AvatarDropzone";
 import { MAX_STRIKES } from "../../../data/initialData";
 import type { PlayerCharacter, SubjectProps, User, Familiar } from "../../../data/types";
-import { getBlendedColor, getBlendedLabel } from "../../../utils/subjectUtils";
+import { getBlendedColor, getBlendedLabel, getMarkUrl } from "../../../utils/subjectUtils";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -96,6 +96,8 @@ interface PlayerCardProps {
   onFamiliarImageChange: (familiarId: string, dataUrl: string) => void;
   /** Cria um novo familiar e vincula ao personagem (usado quando familiarId === "none"). */
   onCreateAndLinkFamiliar: (characterId: string, isNpc: boolean, familiarName: string, imageUrl?: string) => void;
+  /** Alterna se o personagem ganhou/exibe a marca */
+  onToggleMark: (characterId: string, isNpc: boolean) => void;
 }
 
 // ── Strike row ────────────────────────────────────────────────────────────────
@@ -210,11 +212,13 @@ export function PlayerCard({
   onFamiliarImageChange,
   onCreateAndLinkFamiliar,
   onDelete,
+  onToggleMark,
   currentUser,
   users,
   familiars,
 }: PlayerCardProps) {
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [hasMarkError, setHasMarkError] = useState(false);
   const isPlayer = currentUser?.role === "PLAYER";
 
   // Resolve o objeto familiar completo (nome + imageUrl) a partir da lista dinâmica
@@ -222,6 +226,10 @@ export function PlayerCard({
   const hasFamiliar      = !!familiar;
   const familiarInitials = familiar ? toInitials(familiar.name) : "";
   const familiarName     = familiar?.name ?? "Nenhum";
+
+  // URL dinâmica da marca de matéria
+  const markUrl      = getMarkUrl(player.role);
+  const blendedColor = getBlendedColor(player.role);
 
   // Resolve o nome do jogador controlador pelo playerId
   const controllerName = users.find((u) => u.id === player.playerId)?.name ?? "—";
@@ -318,6 +326,20 @@ export function PlayerCard({
           </div>
         )}
 
+        {/* Toggle Mark button — apenas para GM */}
+        {currentUser?.role === "GM" && (
+          <button
+            onClick={() => onToggleMark(player.id, false)}
+            className={[
+              "absolute top-3 right-9 w-6 h-6 flex items-center justify-center transition-colors duration-150 z-10",
+              player.hasEarnedMark ? "text-amber-500 hover:text-amber-400" : "text-muted-foreground hover:text-foreground"
+            ].join(" ")}
+            title={player.hasEarnedMark ? "Remover Marca" : "Conceder Marca"}
+          >
+            <Award size={15} strokeWidth={2} />
+          </button>
+        )}
+
         {/* Delete button — oculto para PLAYERs */}
         {!isPlayer && (
           <button
@@ -335,7 +357,7 @@ export function PlayerCard({
          * Familiar (52 px) + label anchored bottom-right, overlapping main's corner.
          */}
         <div className="relative flex-shrink-0 mt-2" style={{ width: 160, height: 176 }}>
-          <div className="absolute top-0 left-0">
+          <div className="absolute top-0" style={{ left: 8 }}>
             <AvatarDropzone
               initials={player.initials}
               size={144}
@@ -343,10 +365,47 @@ export function PlayerCard({
             />
           </div>
 
+          {/* ── Marca de Matéria — extrema esquerda, espelhando o familiar ─── */}
+          {player.hasEarnedMark && (
+            <div className="absolute bottom-0 left-0 flex flex-col items-center gap-0.5">
+              {/* Anel escuro: padding 2 fixo + conteúdo 52×52 = 56×56 total */}
+              <div
+                className="rounded-full flex-shrink-0"
+                style={{ padding: 2, background: "#141414", width: 56, height: 56, boxSizing: "border-box" }}
+              >
+                {!hasMarkError ? (
+                  <img
+                    src={markUrl}
+                    alt="Marca da matéria"
+                    onError={() => setHasMarkError(true)}
+                    style={{ width: 48, height: 48, borderRadius: "50%", objectFit: "cover", display: "block", margin: 2 }}
+                  />
+                ) : (
+                  <div
+                    className="rounded-full flex items-center justify-center"
+                    style={{ width: 48, height: 48, background: SUBJECT_STYLES[blendedColor].bg, margin: 2 }}
+                  >
+                    <Sparkles size={20} style={{ color: SUBJECT_STYLES[blendedColor].text, opacity: 0.7 }} strokeWidth={1.5} />
+                  </div>
+                )}
+              </div>
+              <span
+                className="text-muted-foreground leading-none"
+                style={{ fontFamily: "var(--font-body)", fontSize: "0.48rem", letterSpacing: "0.12em", textTransform: "uppercase", marginTop: 2 }}
+              >
+                Marca
+              </span>
+            </div>
+          )}
+
           {/* Familiar avatar — oculto quando não há familiar */}
           {hasFamiliar ? (
             <div className="absolute bottom-0 right-0 flex flex-col items-center gap-0.5">
-              <div className="rounded-full" style={{ padding: 2, background: "#141414" }}>
+              {/* Anel escuro: padding 2 fixo + conteúdo 52×52 = 56×56 total */}
+              <div
+                className="rounded-full flex-shrink-0"
+                style={{ padding: 2, background: "#141414", width: 56, height: 56, boxSizing: "border-box" }}
+              >
                 <AvatarDropzone
                   initials={familiarInitials}
                   size={52}
@@ -356,7 +415,7 @@ export function PlayerCard({
               </div>
               <span
                 className="text-muted-foreground leading-none"
-                style={{ fontFamily: "var(--font-body)", fontSize: "0.48rem", letterSpacing: "0.12em", textTransform: "uppercase" }}
+                style={{ fontFamily: "var(--font-body)", fontSize: "0.48rem", letterSpacing: "0.12em", textTransform: "uppercase", marginTop: 2 }}
               >
                 Familiar
               </span>
@@ -364,7 +423,11 @@ export function PlayerCard({
           ) : (
             // familiarId === "none": slot interativo para criar um familiar on-the-fly
             <div className="absolute bottom-0 right-0 flex flex-col items-center gap-0.5">
-              <div className="rounded-full" style={{ padding: 2, background: "#141414" }}>
+              {/* Anel escuro: padding 2 fixo + conteúdo 52×52 = 56×56 total */}
+              <div
+                className="rounded-full flex-shrink-0"
+                style={{ padding: 2, background: "#141414", width: 56, height: 56, boxSizing: "border-box" }}
+              >
                 <AvatarDropzone
                   initials=""
                   size={52}
@@ -379,7 +442,7 @@ export function PlayerCard({
               </div>
               <span
                 className="text-muted-foreground leading-none"
-                style={{ fontFamily: "var(--font-body)", fontSize: "0.48rem", letterSpacing: "0.12em", textTransform: "uppercase" }}
+                style={{ fontFamily: "var(--font-body)", fontSize: "0.48rem", letterSpacing: "0.12em", textTransform: "uppercase", marginTop: 2 }}
               >
                 Familiar
               </span>
