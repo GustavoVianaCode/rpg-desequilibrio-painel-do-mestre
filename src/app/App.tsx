@@ -1,45 +1,83 @@
-import { useState } from "react";
-import { Plus } from "lucide-react";
+import { useState, useMemo } from "react";
+import { Plus, LogOut, ShieldCheck, Search } from "lucide-react";
+
+// ── Auth ────────────────────────────────────────────────────────────────────────────────
+import { AuthProvider, useAuth } from "./context/AuthContext";
+import { LoginScreen } from "./components/auth/LoginScreen";
 
 // ── Layout ────────────────────────────────────────────────────────────────────
-import { Header }             from "./components/layout/Header";
+import { Header } from "./components/layout/Header";
 // ── Feature components ────────────────────────────────────────────────────────
-import { PlayerCard }         from "./components/player/PlayerCard";
-import { NpcCard }            from "./components/npc/NpcCard";
+import { PlayerCard } from "./components/player/PlayerCard";
+import { NpcCard } from "./components/npc/NpcCard";
 // ── Shared ────────────────────────────────────────────────────────────────────
-import { YinYang }            from "./components/shared/YinYang";
-import { AddCharacterModal }  from "./components/shared/AddCharacterModal";
+import { YinYang } from "./components/shared/YinYang";
+import { AddCharacterModal } from "./components/shared/AddCharacterModal";
+import { AdminModal } from "./components/shared/AdminModal";
 // ── Data + types ──────────────────────────────────────────────────────────────
-import { INITIAL_PLAYERS, INITIAL_NPCS, MAX_PLAYERS, MAX_STRIKES } from "../data/initialData";
-import type { Player }        from "./components/player/PlayerCard";
-import type { Npc }           from "./components/npc/NpcCard";
-import type { ModalMode }     from "./components/shared/AddCharacterModal";
+import { INITIAL_PLAYERS, INITIAL_NPCS, INITIAL_FAMILIARS, MAX_PLAYERS, MAX_STRIKES, mockUsers } from "../data/initialData";
+import type { User, Familiar } from "../data/types";
+// Player e Npc sao aliases/extensoes exportados pelos proprios card-components,
+// mantendo a compatibilidade com o sistema de friendships da UI.
+import type { Player } from "./components/player/PlayerCard";
+import type { Npc } from "./components/npc/NpcCard";
+import type { ModalMode } from "./components/shared/AddCharacterModal";
 
-// ── ID counters (module-level; reset on hard-reload) ─────────────────────────
-let nextPlayerId = 1;
-let nextNpcId    = 1;
+// ── ID generation (UUID via Web Crypto API) ──────────────────────────────────
+function newId(): string {
+  return crypto.randomUUID();
+}
 
-// ── App ───────────────────────────────────────────────────────────────────────
+// ── App root (com AuthProvider) ─────────────────────────────────────────────────────────────────
 
 export default function App() {
-  const [players,   setPlayers]   = useState<Player[]>(INITIAL_PLAYERS as Player[]);
-  const [npcs,      setNpcs]      = useState<Npc[]>(INITIAL_NPCS as Npc[]);
+  return (
+    <AuthProvider>
+      <AppInner />
+    </AuthProvider>
+  );
+}
+
+// ── AppInner ────────────────────────────────────────────────────────────────────────────────
+
+function AppInner() {
+  const { currentUser, activeCharacterId, logout } = useAuth();
+  const isGm     = currentUser?.role === "GM";
+  const isPlayer = currentUser?.role === "PLAYER";
+
+  // ── Core data state ──────────────────────────────────────────────────────────
+  const [players, setPlayers]   = useState<Player[]>(INITIAL_PLAYERS as Player[]);
+  const [npcs, setNpcs]         = useState<Npc[]>(INITIAL_NPCS as Npc[]);
+
+  // ── Admin-managed state (live lists fed to modal selectors) ──────────────────
+  const [users, setUsers]       = useState<User[]>(mockUsers);
+  const [familiars, setFamiliars] = useState<Familiar[]>(INITIAL_FAMILIARS);
+
   // null = closed, "player" | "npc" = open for that mode
-  const [addModal,  setAddModal]  = useState<ModalMode | null>(null);
+  const [addModal, setAddModal]   = useState<ModalMode | null>(null);
+  const [showAdmin, setShowAdmin] = useState(false);
+
+  // ── NPC search filter ────────────────────────────────────────────────────────
+  const [npcSearch, setNpcSearch] = useState("");
+  const filteredNpcs = useMemo(() => {
+    const q = npcSearch.trim().toLowerCase();
+    if (!q) return npcs;
+    return npcs.filter((npc) => npc.name.toLowerCase().includes(q));
+  }, [npcs, npcSearch]);
 
   const canAddPlayer = players.length < MAX_PLAYERS;
 
   // ── Point change — auto-adds a strike when a player crosses zero ─────────────
   // Negative values are intentionally allowed (penalties can drop points below 0).
-  const handlePointChange = (id: number, delta: number) => {
+  const handlePointChange = (id: string, delta: number) => {
     setPlayers((prev) =>
       prev.map((p) => {
         if (p.id !== id) return p;
         const newPoints = p.points + delta;
-        const hitZero   = p.points > 0 && newPoints <= 0;
+        const hitZero = p.points > 0 && newPoints <= 0;
         return {
           ...p,
-          points:  newPoints,           // no lower bound — negatives are allowed
+          points: newPoints,           // no lower bound — negatives are allowed
           strikes: hitZero ? Math.min(MAX_STRIKES, p.strikes + 1) : p.strikes,
         };
       })
@@ -47,7 +85,7 @@ export default function App() {
   };
 
   // ── Manual strike override ───────────────────────────────────────────────────
-  const handleStrikeChange = (id: number, delta: number) => {
+  const handleStrikeChange = (id: string, delta: number) => {
     setPlayers((prev) =>
       prev.map((p) =>
         p.id === id
@@ -58,14 +96,14 @@ export default function App() {
   };
 
   // ── Avatar upload ────────────────────────────────────────────────────────────
-  const handleImageChange = (id: number, dataUrl: string) => {
+  const handleImageChange = (id: string, dataUrl: string) => {
     setPlayers((prev) =>
       prev.map((p) => (p.id === id ? { ...p, imageUrl: dataUrl } : p))
     );
   };
 
   // ── Friendship matrix ────────────────────────────────────────────────────────
-  const handleFriendshipChange = (npcId: number, playerId: number, delta: number) => {
+  const handleFriendshipChange = (npcId: string, playerId: string, delta: number) => {
     setNpcs((prev) =>
       prev.map((npc) => {
         if (npc.id !== npcId) return npc;
@@ -82,7 +120,7 @@ export default function App() {
   };
 
   // ── Delete player (also cleans up friendship entries in all NPCs) ─────────────
-  const handleDeletePlayer = (id: number) => {
+  const handleDeletePlayer = (id: string) => {
     setPlayers((prev) => prev.filter((p) => p.id !== id));
     setNpcs((prev) =>
       prev.map((npc) => ({
@@ -93,18 +131,38 @@ export default function App() {
   };
 
   // ── Delete NPC ───────────────────────────────────────────────────────────────
-  const handleDeleteNpc = (id: number) => {
+  const handleDeleteNpc = (id: string) => {
     setNpcs((prev) => prev.filter((npc) => npc.id !== id));
   };
 
+  // ── Admin: register a new player account (GM only) ───────────────────────────
+  const handleAddUser = (user: User) => {
+    setUsers((prev) => [...prev, user]);
+  };
+
+  // ── Admin: register a new familiar (GM only) ─────────────────────────────────
+  const handleAddFamiliar = (familiar: Familiar) => {
+    setFamiliars((prev) => [...prev, familiar]);
+  };
+
   // ── Add character (unified handler for both modes) ───────────────────────────
-  const handleAdd = (data: Record<string, string>) => {
+  const handleAdd = (data: Record<string, unknown>) => {
     if (addModal === "player") {
       if (!canAddPlayer) return;
-      const id = nextPlayerId++;
-      const newPlayer: Player = { id, points: 0, strikes: 0, ...data } as Player;
+      const id = newId();
+      const newPlayer: Player = {
+        id,
+        name: String(data.name ?? ""),
+        initials: String(data.initials ?? ""),
+        points: 0,
+        familiarId: String(data.familiarId ?? familiars[0]?.id ?? "none"),
+        dormitory: String(data.dormitory ?? "—"),
+        strikes: 0,
+        role: Array.isArray(data.role) ? (data.role as Player["role"]) : [],
+        playerId: String(data.playerId ?? "user-guest"),
+      };
       setPlayers((prev) => [...prev, newPlayer]);
-      // Register this new player in every existing NPC's friendship list
+      // Registra este novo jogador em todos os NPCs existentes
       setNpcs((prev) =>
         prev.map((npc) => ({
           ...npc,
@@ -112,19 +170,33 @@ export default function App() {
         }))
       );
     } else if (addModal === "npc") {
-      const id = nextNpcId++;
+      const id = newId();
       const friendships = players.map((p) => ({ playerId: p.id, level: 0 }));
-      const newNpc: Npc = { id, type: "", friendships, ...data } as Npc;
+      const newNpc: Npc = {
+        id,
+        name: String(data.name ?? ""),
+        type: "",
+        initials: String(data.initials ?? ""),
+        points: 0,
+        strikes: 0,
+        familiarId: String(data.familiarId ?? familiars[0]?.id ?? "none"),
+        dormitory: String(data.dormitory ?? "—"),
+        role: Array.isArray(data.role) ? (data.role as Npc["role"]) : [],
+        friendships,
+      };
       setNpcs((prev) => [...prev, newNpc]);
     }
     setAddModal(null);
   };
 
   // ── Render ───────────────────────────────────────────────────────────────────
+  // Guarda de autenticação: se não há usuário, exibe a tela de login
+  if (!currentUser) return <LoginScreen players={players} />;
+
   return (
     <div className="min-h-screen bg-background" style={{ fontFamily: "var(--font-body)" }}>
 
-      <Header />
+      <Header onShowAdmin={() => setShowAdmin(true)} />
 
       <main className="max-w-[1400px] mx-auto px-6 py-10 flex flex-col gap-16">
 
@@ -135,12 +207,13 @@ export default function App() {
             title="Jogadores"
             subtitle={`${players.length} de ${MAX_PLAYERS} vagas preenchidas — ajuste os pontos em tempo real`}
           >
-            {canAddPlayer && (
+            {/* Botão de adicionar jogador — oculto para PLAYERs */}
+            {canAddPlayer && !isPlayer && (
               <AddButton label="Adicionar Jogador" onClick={() => setAddModal("player")} />
             )}
           </SectionHeader>
 
-          <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
             {players.map((player) => (
               <PlayerCard
                 key={player.id}
@@ -149,11 +222,13 @@ export default function App() {
                 onStrikeChange={handleStrikeChange}
                 onImageChange={handleImageChange}
                 onDelete={handleDeletePlayer}
+                currentUser={currentUser}
+                users={users}
               />
             ))}
 
-            {/* Add-player slot — visible while under the limit */}
-            {canAddPlayer && (
+            {/* Add-player slot — visível enquanto abaixo do limite E usuário for GM */}
+            {canAddPlayer && !isPlayer && (
               <AddSlot
                 onClick={() => setAddModal("player")}
                 label="Adicionar Jogador"
@@ -183,21 +258,41 @@ export default function App() {
           >
             <div className="flex items-center gap-4">
               <MatrixLegend />
-              <AddButton label="Adicionar NPC" onClick={() => setAddModal("npc")} />
+              {/* Botão de adicionar NPC — oculto para PLAYERs */}
+              {!isPlayer && (
+                <AddButton label="Adicionar NPC" onClick={() => setAddModal("npc")} />
+              )}
             </div>
           </SectionHeader>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-            {npcs.map((npc) => (
+          {/* ── Barra de pesquisa de NPCs ────────────────────────────────────── */}
+          <NpcSearchBar value={npcSearch} onChange={setNpcSearch} />
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {filteredNpcs.length === 0 && npcSearch.trim() !== "" && (
+              <div
+                className="col-span-full flex flex-col items-center justify-center gap-2 py-12 opacity-50"
+                style={{ fontFamily: "var(--font-mono)", fontSize: "0.65rem", letterSpacing: "0.12em", textTransform: "uppercase", color: "#555" }}
+              >
+                <Search size={24} strokeWidth={1.5} />
+                <span>Nenhum NPC encontrado para "{npcSearch}"</span>
+              </div>
+            )}
+            {filteredNpcs.map((npc) => (
               <NpcCard
                 key={npc.id}
                 npc={npc}
                 players={players}
                 onFriendshipChange={handleFriendshipChange}
                 onDelete={handleDeleteNpc}
+                currentUser={currentUser}
+                activeCharacterId={activeCharacterId}
               />
             ))}
-            <AddSlot onClick={() => setAddModal("npc")} label="Adicionar NPC / Familiar" minHeight={200} />
+            {/* Slot de adicionar NPC — oculto para PLAYERs */}
+            {!isPlayer && (
+              <AddSlot onClick={() => setAddModal("npc")} label="Adicionar NPC / Familiar" minHeight={200} />
+            )}
           </div>
         </section>
 
@@ -209,7 +304,7 @@ export default function App() {
               className="text-muted-foreground"
               style={{ fontFamily: "var(--font-body)", fontSize: "0.6rem", letterSpacing: "0.14em", textTransform: "uppercase" }}
             >
-              Academia Equilibrium — Gerenciador de Sessão
+              Academia Aequilibrium — Gerenciador de Sessão
             </span>
           </div>
           <span
@@ -225,8 +320,19 @@ export default function App() {
       {addModal && (
         <AddCharacterModal
           mode={addModal}
-          onAdd={handleAdd as any}
+          onAdd={handleAdd}
           onClose={() => setAddModal(null)}
+          users={users}
+          familiars={familiars}
+        />
+      )}
+
+      {/* ── Admin modal (GM only) ────────────────────────────────────────── */}
+      {showAdmin && (
+        <AdminModal
+          onClose={() => setShowAdmin(false)}
+          onAddUser={handleAddUser}
+          onAddFamiliar={handleAddFamiliar}
         />
       )}
     </div>
@@ -244,7 +350,7 @@ function SectionHeader({
   children?: React.ReactNode;
 }) {
   return (
-    <div className="flex items-end justify-between mb-7 pb-4 border-b border-border">
+    <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-7 pb-4 border-b border-border">
       <div>
         <p
           className="text-primary mb-1"
@@ -367,3 +473,87 @@ function MatrixLegend() {
     </div>
   );
 }
+
+// ── NpcSearchBar ──────────────────────────────────────────────────────────────
+
+/**
+ * Campo de pesquisa de NPCs com design glassmorphism.
+ * Filtra a lista em tempo real conforme o usuário digita (case-insensitive).
+ */
+function NpcSearchBar({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+}) {
+  return (
+    <div
+      className="relative mb-5 flex items-center"
+      style={{
+        background: "rgba(255,255,255,0.03)",
+        border: "1px solid rgba(255,255,255,0.08)",
+        borderRadius: 2,
+      }}
+    >
+      <Search
+        size={13}
+        strokeWidth={2}
+        style={{
+          position: "absolute",
+          left: "0.85rem",
+          color: "#555",
+          pointerEvents: "none",
+          flexShrink: 0,
+        }}
+      />
+      <input
+        id="npc-search"
+        type="search"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder="Pesquisar NPC pelo nome…"
+        autoComplete="off"
+        style={{
+          width: "100%",
+          background: "transparent",
+          border: "none",
+          outline: "none",
+          padding: "0.55rem 0.85rem 0.55rem 2.2rem",
+          fontFamily: "var(--font-body)",
+          fontSize: "0.75rem",
+          letterSpacing: "0.04em",
+          color: "#e0e0e0",
+        }}
+        onFocus={(e) =>
+          (e.currentTarget.parentElement!.style.borderColor = "rgba(200,16,46,0.5)")
+        }
+        onBlur={(e) =>
+          (e.currentTarget.parentElement!.style.borderColor = "rgba(255,255,255,0.08)")
+        }
+      />
+      {value && (
+        <button
+          onClick={() => onChange("")}
+          title="Limpar pesquisa"
+          style={{
+            position: "absolute",
+            right: "0.75rem",
+            background: "transparent",
+            border: "none",
+            cursor: "pointer",
+            color: "#555",
+            fontSize: "0.85rem",
+            lineHeight: 1,
+            padding: 0,
+          }}
+          onMouseEnter={(e) => (e.currentTarget.style.color = "#c8102e")}
+          onMouseLeave={(e) => (e.currentTarget.style.color = "#555")}
+        >
+          ×
+        </button>
+      )}
+    </div>
+  );
+}
+

@@ -1,17 +1,22 @@
 import type { Player } from "../player/PlayerCard";
+import type { User } from "../../../data/types";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 export interface Friendship {
-  playerId: number;
+  playerId: string;
   level: number; // -4 to +4
 }
 
 interface FriendshipMatrixProps {
-  npcId: number;
+  npcId: string;
   players: Player[];
   friendships: Friendship[];
-  onFriendshipChange: (npcId: number, playerId: number, delta: number) => void;
+  onFriendshipChange: (npcId: string, playerId: string, delta: number) => void;
+  /** Usuário atualmente autenticado. Controla o filtro de visão. */
+  currentUser: User | null;
+  /** ID do personagem ativo (relevante apenas para role === "PLAYER"). */
+  activeCharacterId: string | null;
 }
 
 // ── Friendship level names ─────────────────────────────────────────────────────
@@ -29,7 +34,7 @@ const FRIENDSHIP_LEVELS: Record<number, string> = {
 };
 
 function getLevelName(level: number): string {
-  return FRIENDSHIP_LEVELS[String(level)] ?? "Neutro";
+  return FRIENDSHIP_LEVELS[level] ?? "Neutro";
 }
 
 // ── Bidirectional bar ─────────────────────────────────────────────────────────
@@ -127,9 +132,22 @@ function PlayerThumb({ player }: { player: Player }) {
  * Supports levels from -4 (Profundo ódio) to +4 (Grande amigo).
  * Designed to be embedded inside NpcCard.
  */
-export function FriendshipMatrix({ npcId, players, friendships, onFriendshipChange }: FriendshipMatrixProps) {
-  const getLevel = (playerId: number) =>
+export function FriendshipMatrix({
+  npcId,
+  players,
+  friendships,
+  onFriendshipChange,
+  currentUser,
+  activeCharacterId,
+}: FriendshipMatrixProps) {
+  const getLevel = (playerId: string) =>
     friendships.find((f) => f.playerId === playerId)?.level ?? 0;
+
+  // PLAYERs só vêem a própria linha; GMs vêem todos.
+  const visiblePlayers =
+    currentUser?.role === "PLAYER"
+      ? players.filter((p) => p.id === activeCharacterId)
+      : players;
 
   return (
     <div className="border-t border-border px-4 pb-4 pt-3" style={{ fontFamily: "var(--font-body)" }}>
@@ -140,49 +158,69 @@ export function FriendshipMatrix({ npcId, players, friendships, onFriendshipChan
         Matriz de Amizade
       </p>
 
-      <div className="flex flex-col gap-3">
-        {players.map((player) => {
-          const level = getLevel(player.id);
-          return (
-            <div key={player.id} className="flex items-center gap-2">
-              {/* Player thumbnail */}
-              <PlayerThumb player={player} />
+      <div className="overflow-x-auto w-full max-w-full">
+        <div className="flex flex-col gap-3 min-w-[300px]">
+          {visiblePlayers.length === 0 && (
+            <p
+              style={{
+                fontFamily: "var(--font-mono)",
+                fontSize: "0.6rem",
+                letterSpacing: "0.1em",
+                color: "#3a3a3a",
+                textAlign: "center",
+                padding: "0.5rem 0",
+              }}
+            >
+              Sem dados de amizade visíveis.
+            </p>
+          )}
+          {visiblePlayers.map((player) => {
+            const level = getLevel(player.id);
+            // PLAYER só edita o próprio relacionamento; GM edita todos.
+            const isOwnRelationship =
+              currentUser?.role !== "PLAYER" || player.id === activeCharacterId;
 
-              {/* Player name */}
-              <span
-                className="text-sm font-medium text-foreground truncate flex-shrink-0"
-                style={{ width: "4rem" }}
-              >
-                {player.name}
-              </span>
+            return (
+              <div key={player.id} className="flex items-center gap-2">
+                {/* Player thumbnail */}
+                <PlayerThumb player={player} />
 
-              {/* Minus button */}
-              <button
-                onClick={() => onFriendshipChange(npcId, player.id, -1)}
-                disabled={level <= -4}
-                className="w-8 h-8 flex items-center justify-center border border-border bg-secondary text-foreground hover:border-foreground disabled:opacity-20 disabled:cursor-not-allowed transition-all duration-150 active:scale-95 flex-shrink-0"
-                style={{ fontFamily: "var(--font-mono)", fontSize: "1rem", fontWeight: 700, lineHeight: 1 }}
-              >
-                −
-              </button>
+                {/* Player name */}
+                <span
+                  className="text-sm font-medium text-foreground truncate flex-shrink-0"
+                  style={{ width: "4rem" }}
+                >
+                  {player.name}
+                </span>
 
-              {/* Bidirectional bar */}
-              <div className="flex-1 min-w-0">
-                <FriendshipBar level={level} />
+                {/* Minus button */}
+                <button
+                  onClick={() => onFriendshipChange(npcId, player.id, -1)}
+                  disabled={!isOwnRelationship || level <= -4}
+                  className="w-8 h-8 flex items-center justify-center border border-border bg-secondary text-foreground hover:border-foreground disabled:opacity-20 disabled:cursor-not-allowed transition-all duration-150 active:scale-95 flex-shrink-0"
+                  style={{ fontFamily: "var(--font-mono)", fontSize: "1rem", fontWeight: 700, lineHeight: 1 }}
+                >
+                  −
+                </button>
+
+                {/* Bidirectional bar */}
+                <div className="flex-1 min-w-0">
+                  <FriendshipBar level={level} />
+                </div>
+
+                {/* Plus button */}
+                <button
+                  onClick={() => onFriendshipChange(npcId, player.id, 1)}
+                  disabled={!isOwnRelationship || level >= 4}
+                  className="w-8 h-8 flex items-center justify-center border border-primary bg-primary text-white hover:opacity-80 disabled:opacity-20 disabled:cursor-not-allowed transition-all duration-150 active:scale-95 flex-shrink-0"
+                  style={{ fontFamily: "var(--font-mono)", fontSize: "1rem", fontWeight: 700, lineHeight: 1 }}
+                >
+                  +
+                </button>
               </div>
-
-              {/* Plus button */}
-              <button
-                onClick={() => onFriendshipChange(npcId, player.id, 1)}
-                disabled={level >= 4}
-                className="w-8 h-8 flex items-center justify-center border border-primary bg-primary text-white hover:opacity-80 disabled:opacity-20 disabled:cursor-not-allowed transition-all duration-150 active:scale-95 flex-shrink-0"
-                style={{ fontFamily: "var(--font-mono)", fontSize: "1rem", fontWeight: 700, lineHeight: 1 }}
-              >
-                +
-              </button>
-            </div>
-          );
-        })}
+            );
+          })}
+        </div>
       </div>
     </div>
   );

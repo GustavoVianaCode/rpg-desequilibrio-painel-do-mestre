@@ -1,5 +1,5 @@
 import { useState, useRef } from "react";
-import { Camera } from "lucide-react";
+import { Camera, Upload } from "lucide-react";
 
 interface AvatarDropzoneProps {
   initials: string;
@@ -10,15 +10,19 @@ interface AvatarDropzoneProps {
 /**
  * Circular avatar that acts as a drag-and-drop / click-to-upload dropzone.
  * Shows initials when empty; renders the uploaded image when filled.
+ *
+ * Uses a depth counter instead of a boolean flag to avoid flickering when
+ * the pointer moves over child elements inside the dropzone.
  */
 export function AvatarDropzone({ initials, size = 96, onImageChange }: AvatarDropzoneProps) {
-  const [imageUrl, setImageUrl]     = useState<string | null>(null);
-  const [isDragging, setIsDragging] = useState(false);
+  const [imageUrl, setImageUrl]   = useState<string | null>(null);
+  const [dragDepth, setDragDepth] = useState(0);   // >0 means actively dragging over this zone
   const [isHovering, setIsHovering] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const hasImage   = imageUrl !== null;
-  const showOverlay = isDragging || isHovering;
+  const isDragging    = dragDepth > 0;
+  const hasImage      = imageUrl !== null;
+  const showOverlay   = isDragging || isHovering;
   const overlayIconSize = Math.max(14, Math.round(size * 0.24));
   const hintIconSize    = Math.max(8,  Math.round(size * 0.16));
   const initialsSize    = Math.round(size * 0.3);
@@ -35,8 +39,9 @@ export function AvatarDropzone({ initials, size = 96, onImageChange }: AvatarDro
     reader.readAsDataURL(file);
   };
 
+  // Border style encodes the drag / hover / empty states clearly
   const borderStyle: React.CSSProperties = isDragging
-    ? { border: "2px dashed #c8102e" }
+    ? { border: "2px dashed #c8102e", opacity: 0.9 }
     : isHovering
     ? { border: "2px solid rgba(200, 16, 46, 0.55)" }
     : hasImage
@@ -49,11 +54,12 @@ export function AvatarDropzone({ initials, size = 96, onImageChange }: AvatarDro
       className="relative cursor-pointer flex-shrink-0 overflow-hidden transition-all duration-150 select-none"
       role="button"
       aria-label="Clique ou arraste uma imagem"
-      onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
-      onDragLeave={() => setIsDragging(false)}
+      onDragEnter={(e) => { e.preventDefault(); setDragDepth((d) => d + 1); }}
+      onDragOver={(e)  => { e.preventDefault(); }}
+      onDragLeave={()  => { setDragDepth((d) => Math.max(0, d - 1)); }}
       onDrop={(e) => {
         e.preventDefault();
-        setIsDragging(false);
+        setDragDepth(0);
         const file = e.dataTransfer.files[0];
         if (file) processFile(file);
       }}
@@ -84,10 +90,14 @@ export function AvatarDropzone({ initials, size = 96, onImageChange }: AvatarDro
       {/* Hover / drag overlay */}
       {showOverlay && (
         <div
-          className="absolute inset-0 flex items-center justify-center transition-all duration-150"
-          style={{ background: isDragging ? "rgba(200,16,46,0.30)" : "rgba(0,0,0,0.60)" }}
+          className="absolute inset-0 flex flex-col items-center justify-center gap-1 transition-all duration-150"
+          style={{ background: isDragging ? "rgba(200,16,46,0.28)" : "rgba(0,0,0,0.60)" }}
         >
-          <Camera size={overlayIconSize} strokeWidth={1.5} style={{ color: isDragging ? "#c8102e" : "#ffffff" }} />
+          {isDragging ? (
+            <Upload size={overlayIconSize} strokeWidth={1.5} style={{ color: "#c8102e" }} />
+          ) : (
+            <Camera size={overlayIconSize} strokeWidth={1.5} style={{ color: "#ffffff" }} />
+          )}
         </div>
       )}
 

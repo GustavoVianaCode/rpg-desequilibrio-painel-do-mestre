@@ -1,32 +1,27 @@
 import { useState } from "react";
 import { X } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "../ui/select";
+import { mockSubjects } from "../../../data/initialData";
+import type { SubjectProps, User, Familiar } from "../../../data/types";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 export type ModalMode = "player" | "npc";
 
-interface PlayerData {
-  name: string;
-  role: string;
-  initials: string;
-  familiarName: string;
-  familiarInitials: string;
-  dormitory: string;
-}
-
-interface NpcData {
-  name: string;
-  initials: string;
-  familiarName: string;
-  familiarInitials: string;
-  dormitory: string;
-  subject: string;
-}
-
 interface AddCharacterModalProps {
   mode: ModalMode;
-  onAdd: (data: PlayerData | NpcData) => void;
+  onAdd: (data: Record<string, unknown>) => void;
   onClose: () => void;
+  /** Player accounts available for selection (GM-managed, passed from App state). */
+  users?: User[];
+  /** Familiars available for selection (GM-managed, passed from App state). */
+  familiars?: Familiar[];
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -46,43 +41,71 @@ function deriveInitials(name: string): string {
  * Unified modal for adding either a Player or an NPC/Familiar.
  * The `mode` prop switches the title, field set, and submit payload.
  *
- * Player fields (top → bottom): Nome · Classe · Nome do Familiar
- * NPC fields   (top → bottom): Nome · Matéria · Nome do Familiar · Dormitório
+ * Player fields (top → bottom): Nome · Matéria · Conta do Jogador · Familiar · Dormitório
+ * NPC fields   (top → bottom): Nome · Matéria · Familiar · Dormitório
  */
-export function AddCharacterModal({ mode, onAdd, onClose }: AddCharacterModalProps) {
-  const [name, setName] = useState("");
-  const [role, setRole] = useState("");   // player only
-  const [subject, setSubject] = useState("");   // npc only
-  const [familiarName, setFamiliarName] = useState("");
-  const [dormitory, setDormitory] = useState("");   // shared
+export function AddCharacterModal({ mode, onAdd, onClose, users = [], familiars = [] }: AddCharacterModalProps) {
+  const [name, setName]               = useState("");
+  const [playerId, setPlayerId]       = useState("");   // player only — ID of chosen player User
+  const [selectedSubjects, setSelectedSubjects] = useState<SubjectProps[]>([]); // 1–2 subjects
+  const [familiarId, setFamiliarId]   = useState("");   // shared — ID of chosen Familiar
+  const [dormitory, setDormitory]     = useState("");   // shared
 
-  const isNpc = mode === "npc";
-  const title = isNpc ? "Adicionar NPC / Familiar" : "Adicionar Jogador";
+  const isNpc  = mode === "npc";
+  const title  = isNpc ? "Adicionar NPC / Familiar" : "Adicionar Jogador";
+
+  // Resolve selected Familiar name for avatar preview
+  const selectedFamiliarName = familiars.find((f) => f.id === familiarId)?.name ?? "";
+
+  // ── Toggle subject selection (max 2, Caos ↔ Destino exclusion) ──────────────
+  const toggleSubject = (subject: SubjectProps) => {
+    setSelectedSubjects((prev) => {
+      const isSelected = prev.some((s) => s.id === subject.id);
+      if (isSelected) {
+        return prev.filter((s) => s.id !== subject.id);
+      }
+      // Already at max — ignore
+      if (prev.length >= 2) return prev;
+      return [...prev, subject];
+    });
+  };
+
+  const isSubjectDisabled = (subject: SubjectProps): boolean => {
+    const isSelected = selectedSubjects.some((s) => s.id === subject.id);
+    if (isSelected) return false; // always allow de-selection
+    if (selectedSubjects.length >= 2) return true; // max reached
+    // Caos ↔ Destino mutual exclusion
+    const hasCaos    = selectedSubjects.some((s) => s.name === "Caos");
+    const hasDestino = selectedSubjects.some((s) => s.name === "Destino");
+    if (hasCaos    && subject.name === "Destino") return true;
+    if (hasDestino && subject.name === "Caos")    return true;
+    return false;
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const trimmedName = name.trim();
-    const trimmedFamiliar = familiarName.trim() || "—";
     if (!trimmedName) return;
+    // Rule 3 — must have at least 1 subject
+    if (selectedSubjects.length === 0) return;
 
     if (isNpc) {
       onAdd({
         name: trimmedName,
         initials: deriveInitials(trimmedName),
-        familiarName: trimmedFamiliar,
-        familiarInitials: deriveInitials(trimmedFamiliar),
+        familiarId: familiarId || "none",
         dormitory: dormitory.trim() || "—",
-        subject: subject.trim() || "—",
-      } satisfies NpcData);
+        role: selectedSubjects,
+      });
     } else {
       onAdd({
         name: trimmedName,
-        role: role.trim() || "Aventureiro",
         initials: deriveInitials(trimmedName),
-        familiarName: trimmedFamiliar,
-        familiarInitials: deriveInitials(trimmedFamiliar),
+        familiarId: familiarId || "none",
         dormitory: dormitory.trim() || "—",
-      } satisfies PlayerData);
+        role: selectedSubjects,
+        playerId: playerId,
+      });
     }
 
     onClose();
@@ -95,13 +118,13 @@ export function AddCharacterModal({ mode, onAdd, onClose }: AddCharacterModalPro
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
       <div
-        className="bg-card border border-border w-full max-w-sm relative mx-4"
+        className="bg-card border border-border w-full max-w-sm relative mx-4 flex flex-col max-h-[90vh] md:max-h-[80vh]"
         style={{ fontFamily: "var(--font-body)" }}
       >
-        <div className="absolute top-0 left-0 right-0 h-[2px] bg-primary" />
+        <div className="absolute top-0 left-0 right-0 h-[2px] bg-primary flex-shrink-0" />
 
         {/* Header */}
-        <div className="flex items-center justify-between px-6 pt-6 pb-4 border-b border-border">
+        <div className="flex items-center justify-between px-6 pt-6 pb-4 border-b border-border flex-shrink-0">
           <h3
             className="text-foreground"
             style={{ fontFamily: "var(--font-display)", fontSize: "1rem", fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase" }}
@@ -114,7 +137,7 @@ export function AddCharacterModal({ mode, onAdd, onClose }: AddCharacterModalPro
         </div>
 
         {/* Form */}
-        <form onSubmit={handleSubmit} className="px-6 py-5 flex flex-col gap-4">
+        <form onSubmit={handleSubmit} className="px-6 py-5 flex flex-col gap-4 overflow-y-auto flex-1">
 
           {/* Field 1 — Nome (shared) */}
           <Field
@@ -125,30 +148,84 @@ export function AddCharacterModal({ mode, onAdd, onClose }: AddCharacterModalPro
             autoFocus
           />
 
-          {/* Field 2 — Matéria (NPC) | Classe (Player) */}
-          {isNpc ? (
-            <Field
-              label="Matéria que estuda"
-              value={subject}
-              onChange={setSubject}
-              placeholder="ex: Conjuração Arcana…"
+          {/* Field 2 — Matérias (Grid de seleção múltipla — 1 a 2) */}
+          <div className="flex flex-col gap-1.5">
+            <span
+              className="text-muted-foreground"
+              style={{ fontFamily: "var(--font-body)", fontSize: "0.62rem", letterSpacing: "0.16em", textTransform: "uppercase" }}
+            >
+              Matérias que estuda *
+              <span
+                className="ml-2"
+                style={{ color: selectedSubjects.length === 2 ? "var(--color-primary)" : "inherit", opacity: 0.7 }}
+              >
+                ({selectedSubjects.length}/2)
+              </span>
+            </span>
+            <SubjectGrid
+              subjects={mockSubjects}
+              selected={selectedSubjects}
+              isDisabled={isSubjectDisabled}
+              onToggle={toggleSubject}
             />
-          ) : (
-            <Field
-              label="Classe"
-              value={role}
-              onChange={setRole}
-              placeholder="ex: Ranger, Bruxo…"
-            />
+            {selectedSubjects.length === 2 && (
+              <p style={{ fontFamily: "var(--font-body)", fontSize: "0.65rem", color: "var(--color-primary)", opacity: 0.8, marginTop: "2px" }}>
+                Máximo de 2 matérias atingido.
+              </p>
+            )}
+          </div>
+
+          {/* Field 3 — Conta do Jogador (Dono) (player only) */}
+          {!isNpc && (
+            <SelectField label="Conta do Jogador (Dono) *">
+              <Select value={playerId} onValueChange={setPlayerId}>
+                <SelectTrigger
+                  className="bg-secondary border-border text-foreground data-[placeholder]:text-muted-foreground focus-visible:border-primary focus-visible:ring-0 rounded-none h-9"
+                  style={{ fontFamily: "var(--font-body)", fontSize: "0.85rem" }}
+                >
+                  <SelectValue placeholder="Selecione um jogador…" />
+                </SelectTrigger>
+                <SelectContent className="bg-card border-border text-foreground rounded-none">
+                  {users
+                    .filter((u) => u.role === "PLAYER")
+                    .map((u) => (
+                      <SelectItem
+                        key={u.id}
+                        value={u.id}
+                        className="focus:bg-secondary focus:text-foreground"
+                        style={{ fontFamily: "var(--font-body)", fontSize: "0.85rem" }}
+                      >
+                        {u.name}
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
+            </SelectField>
           )}
 
-          {/* Field 3 — Nome do Familiar (shared) */}
-          <Field
-            label="Nome do Familiar"
-            value={familiarName}
-            onChange={setFamiliarName}
-            placeholder={isNpc ? "ex: Luminar, Sombra…" : "ex: Presa, Névoa…"}
-          />
+          {/* Field 4 — Familiar (shared — dynamic, from App state) */}
+          <SelectField label="Familiar">
+            <Select value={familiarId} onValueChange={setFamiliarId}>
+              <SelectTrigger
+                className="bg-secondary border-border text-foreground data-[placeholder]:text-muted-foreground focus-visible:border-primary focus-visible:ring-0 rounded-none h-9"
+                style={{ fontFamily: "var(--font-body)", fontSize: "0.85rem" }}
+              >
+                <SelectValue placeholder="Selecione um familiar…" />
+              </SelectTrigger>
+              <SelectContent className="bg-card border-border text-foreground rounded-none">
+                {familiars.map((f) => (
+                  <SelectItem
+                    key={f.id}
+                    value={f.id}
+                    className="focus:bg-secondary focus:text-foreground"
+                    style={{ fontFamily: "var(--font-body)", fontSize: "0.85rem" }}
+                  >
+                    {f.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </SelectField>
 
           {/* Field 4 — Dormitório (shared) */}
           <Field
@@ -158,13 +235,12 @@ export function AddCharacterModal({ mode, onAdd, onClose }: AddCharacterModalPro
             placeholder="ex: Torre Norte, Ala Leste…"
           />
 
-
           {/* Avatar preview */}
           {name.trim() && (
             <div className="flex items-end gap-2 py-1">
               <AvatarPreview initials={deriveInitials(name)} large />
-              {familiarName.trim() && (
-                <AvatarPreview initials={deriveInitials(familiarName)} />
+              {selectedFamiliarName && (
+                <AvatarPreview initials={deriveInitials(selectedFamiliarName)} />
               )}
               <span
                 className="text-muted-foreground ml-1"
@@ -187,7 +263,7 @@ export function AddCharacterModal({ mode, onAdd, onClose }: AddCharacterModalPro
             </button>
             <button
               type="submit"
-              disabled={!name.trim()}
+              disabled={!name.trim() || (!isNpc && !playerId) || selectedSubjects.length === 0}
               className="flex-1 py-2 bg-primary border border-primary text-white hover:opacity-80 disabled:opacity-30 transition-opacity"
               style={{ fontFamily: "var(--font-display)", fontSize: "0.75rem", fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase" }}
             >
@@ -232,8 +308,77 @@ function Field({ label, value, onChange, placeholder, autoFocus }: FieldProps) {
   );
 }
 
+/** Wrapper that mimics the same label style used by Field, for Select fields. */
+function SelectField({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="flex flex-col gap-1.5">
+      <span
+        className="text-muted-foreground"
+        style={{ fontFamily: "var(--font-body)", fontSize: "0.62rem", letterSpacing: "0.16em", textTransform: "uppercase" }}
+      >
+        {label}
+      </span>
+      {children}
+    </div>
+  );
+}
+
+// ── SubjectGrid ───────────────────────────────────────────────────────────────
+
+interface SubjectGridProps {
+  subjects: SubjectProps[];
+  selected: SubjectProps[];
+  isDisabled: (subject: SubjectProps) => boolean;
+  onToggle: (subject: SubjectProps) => void;
+}
+
+function SubjectGrid({ subjects, selected, isDisabled, onToggle }: SubjectGridProps) {
+  return (
+    <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+      {subjects.map((subject) => {
+        const isSelected = selected.some((s) => s.id === subject.id);
+        const disabled   = isDisabled(subject);
+        return (
+          <button
+            key={subject.id}
+            type="button"
+            disabled={disabled}
+            onClick={() => onToggle(subject)}
+            title={subject.name}
+            style={{
+              fontFamily: "var(--font-body)",
+              fontSize: "0.75rem",
+              letterSpacing: "0.04em",
+              padding: "8px 10px",
+              minHeight: "2.5rem",
+              border: isSelected
+                ? "1px solid var(--color-primary)"
+                : "1px solid var(--color-border)",
+              background: isSelected
+                ? "color-mix(in srgb, var(--color-primary) 18%, transparent)"
+                : "var(--color-secondary)",
+              color: isSelected
+                ? "var(--color-primary)"
+                : disabled
+                ? "var(--color-muted-foreground)"
+                : "var(--color-foreground)",
+              opacity: disabled ? 0.35 : 1,
+              cursor: disabled ? "not-allowed" : "pointer",
+              transition: "all 0.15s ease",
+              textAlign: "left",
+              lineHeight: 1.3,
+            }}
+          >
+            {subject.name}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 function AvatarPreview({ initials, large = false }: { initials: string; large?: boolean }) {
-  const size = large ? "w-12 h-12" : "w-8 h-8 mb-0.5";
+  const size   = large ? "w-12 h-12" : "w-8 h-8 mb-0.5";
   const border = large ? "border-2" : "border";
   return (
     <div
