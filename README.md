@@ -125,12 +125,118 @@ src/
 
 ---
 
-## 📜 Contrato de API — Guia para o Back-end
+## 🏗️ Arquitetura e Contratos de API
 
-> Esta seção descreve com precisão as interfaces de dados que o front-end usa internamente
-> e que os endpoints da API deverão respeitar.
+Esta seção descreve a arquitetura de entidades do front-end, seus relacionamentos e o mapeamento dos contratos de API necessários para a integração completa com o Back-end.
 
-> **Decisão de Imagens (Upload & Drag & Drop):** As propriedades `imageUrl` enviadas pelo componente de *Drag & Drop* da UI (para avatares de personagens e de familiares) são tratadas pelo front-end. Como padrão de integração com o back-end, sugere-se que o backend aceite o upload em formato `multipart/form-data` ou receba o arquivo encodado em string `Base64` no payload de criação/edição.
+---
+
+### 1. 📊 Diagrama de Relacionamentos (Mermaid)
+
+O diagrama de classes abaixo ilustra as entidades definidas no arquivo de contratos [types.ts](file:///c:/Users/Gusta/Documents/GitHub/rpg-desequilibrio-painel-do-mestre/src/data/types.ts), seus atributos cruciais e as relações existentes:
+
+```mermaid
+classDiagram
+    direction TB
+
+    class User {
+        +string id
+        +string name
+        +string email
+        +string password
+        +string role ("GM" | "PLAYER")
+    }
+
+    class PlayerCharacter {
+        +string id
+        +string name
+        +string initials
+        +number points
+        +number strikes
+        +string dormitory
+        +string imageUrl
+        +string playerId
+        +string familiarId
+        +boolean hasEarnedMark
+    }
+
+    class NPC {
+        +string id
+        +string name
+        +string initials
+        +number points
+        +number strikes
+        +string dormitory
+        +string imageUrl
+        +string familiarId
+        +string type
+        +boolean hasEarnedMark
+    }
+
+    class Familiar {
+        +string id
+        +string name
+        +string imageUrl
+    }
+
+    class Subject {
+        +string id
+        +string name
+        +string icon
+        +string color ("black" | "white" | "gray" | "darkGray" | "lightGray")
+    }
+
+    class Relationship {
+        +string id
+        +string player
+        +string npc
+        +number level (-4 a +4)
+    }
+
+    User "1" --> "0..1" PlayerCharacter : playerId (Dono do personagem)
+    PlayerCharacter "many" --> "1..2" Subject : role (Array de Matérias cursadas)
+    NPC "many" --> "1..2" Subject : role (Array de Matérias cursadas)
+    PlayerCharacter "many" --> "0..1" Familiar : familiarId (Vinculado a)
+    NPC "many" --> "0..1" Familiar : familiarId (Vinculado a)
+    Relationship "many" --> "1" PlayerCharacter : player (Matriz de Amizades)
+    Relationship "many" --> "1" NPC : npc (Matriz de Amizades)
+```
+
+> **Campos Vitais Destacados:**
+> - **`hasEarnedMark`** (booleano): Inicializado como `false`. Indica se as Marcas de Disciplina do personagem devem ser exibidas. Controlado pelo GM.
+> - **`familiarId`** (string): Referência ao familiar associado. O valor especial `"none"` é usado quando não há familiar.
+> - **`role`** (Subject[]): Array contendo de 1 a 2 matérias. A classe/arquétipo textual livre foi eliminada; tudo é derivado das disciplinas cursadas.
+> - **`strikes`** (number): Contador de marcas de falha (limite de 0 a 4).
+> - **`points`** (number): Pontos de HP/Sanidade. Podem assumir valores negativos.
+> - **Matriz de Amizades ([Relationship](file:///c:/Users/Gusta/Documents/GitHub/rpg-desequilibrio-painel-do-mestre/src/data/types.ts#L36-L44))**: Estrutura de relacionamento muitos-para-muitos conectando `PlayerCharacter` e `NPC`.
+
+---
+
+### 2. 🗺️ Mapeamento de Funcionalidades (Endpoints Esperados)
+
+A tabela a seguir apresenta todas as operações efetuadas pelo Front-end e que necessitam de correspondência no Back-end:
+
+| Funcionalidade / Ação do Front-end | Método HTTP | Rota da API | Payload (Request Body) / Parâmetros | Regras de Negócio e Efeitos Colaterais no Back-end |
+| :--- | :---: | :--- | :--- | :--- |
+| **Autenticação (Login)** | `POST` | `/auth/login` | `{ "email", "password" }` | Autentica a sessão do usuário. Retorna o token de acesso (JWT) e dados do `User`. |
+| **Criação de Usuário (Player)** | `POST` | `/admin/users` | `{ "name", "email", "password", "role": "PLAYER" }` | Cria uma nova conta para jogador no sistema (restrito a GM). |
+| **Listar Jogadores do Sistema** | `GET` | `/admin/users` | N/A | Exibe todos os usuários cadastrados na tela de administração. |
+| **Listar Familiares Cadastrados** | `GET` | `/admin/familiars` | N/A | Retorna todos os familiares existentes. |
+| **Cadastrar Familiar** | `POST` | `/admin/familiars` | `{ "name", "imageUrl" }` | Adiciona um novo familiar no catálogo de entidades (restrito a GM). |
+| **Listar Personagens Jogadores** | `GET` | `/characters/players` | N/A | Retorna a lista de todos os `PlayerCharacter` cadastrados com suas respectivas matérias cursadas (`role`). |
+| **Criar Personagem Jogador** | `POST` | `/characters/players` | `{ "name", "initials", "dormitory", "playerId", "familiarId", "role": ["subj-ids"], "hasEarnedMark": false }` | Cria um personagem vinculado a um `User`. **Efeito Colateral:** O back-end deve gerar automaticamente registros na tabela `Relationship` com nível `0` (Neutro) entre este novo jogador e todos os NPCs atualmente ativos. |
+| **Excluir Personagem Jogador** | `DELETE` | `/characters/players/:id` | N/A | Exclui o personagem de forma definitiva. **Efeito Colateral:** Remove em cascata todos os relacionamentos em `Relationship` associados a ele. |
+| **Listar NPCs** | `GET` | `/characters/npcs` | N/A | Retorna a lista de todos os `NPC` do painel. |
+| **Criar NPC** | `POST` | `/characters/npcs` | `{ "name", "initials", "dormitory", "familiarId", "role": ["subj-ids"], "type", "hasEarnedMark": false }` | Cria um NPC. **Efeito Colateral:** O back-end deve gerar automaticamente registros na tabela `Relationship` com nível `0` (Neutro) entre este novo NPC e todos os `PlayerCharacter` ativos. |
+| **Excluir NPC** | `DELETE` | `/characters/npcs/:id` | N/A | Exclui o NPC de forma definitiva. **Efeito Colateral:** Remove em cascata todos os relacionamentos em `Relationship` associados a ele. |
+| **Edição de Pontos (HP/Sanidade)** | `PATCH` | `/characters/players/:id` ou `/characters/npcs/:id` | `{ "points": number }` | Atualiza a quantidade de pontos do personagem. Aceita valores negativos. No front, cruzar de positivo para `<= 0` incrementa automaticamente 1 strike. |
+| **Adição de Marcas de Falha (Strikes)** | `PATCH` | `/characters/players/:id` ou `/characters/npcs/:id` | `{ "strikes": number }` | Altera a contagem de marcas de falha. A validação deve limitar o valor de `0` a `4`. |
+| **Conceder/Remover Marca (`hasEarnedMark`)** | `PATCH` | `/characters/players/:id` ou `/characters/npcs/:id` | `{ "hasEarnedMark": boolean }` | Concede ou remove a exibição das marcas ganhas (exclusivo do GM). |
+| **Vincular Familiar Dinamicamente** | `PATCH` | `/characters/players/:id` ou `/characters/npcs/:id` | `{ "familiarId": string }` | Vincula dinamicamente um familiar (através do ID) ou desvincula (passando `"none"`). |
+| **Alterar Amizade na Matriz** | `PATCH` | `/relationships/:id` | `{ "level": number }` | Atualiza o relacionamento. **Regra de Validação:** O valor de `level` deve estar estritamente entre `-4` e `+4`. Jogadores só editam os relacionamentos do próprio personagem. |
+| **Listar Relacionamentos (Matriz)** | `GET` | `/relationships` | N/A | Retorna a lista plana de relacionamentos para renderização da matriz. |
+| **Listar Matérias (Seed)** | `GET` | `/subjects` | N/A | Retorna o catálogo fixo de matérias cadastradas no banco (dados estáticos seedados). |
+| **Carregar Sessão Consolidada** | `GET` | `/session` | N/A | Retorna `{ players, npcs, relationships }` em chamada única para hidratação inicial do painel. |
 
 ---
 
@@ -145,10 +251,13 @@ src/
 
 ---
 
-### 1. 📚 Matérias (`SubjectProps`) — Dados Estáticos
+### 📋 Detalhes das Entidades (Contratos TypeScript)
 
-As matérias são o **catálogo fixo de disciplinas do sistema**, definidas como seed no back-end.
-O front-end **não cria nem edita** matérias em runtime — apenas as consome.
+Esta subseção detalha a estrutura de objetos trocada por cada entidade em endpoints individuais:
+
+#### 1. 📚 Matérias (`SubjectProps`) — Dados Estáticos
+
+As matérias são o **catálogo fixo de disciplinas do sistema**, definidas como seed no back-end. O front-end **não cria nem edita** matérias em runtime — apenas as consome.
 
 ```typescript
 interface SubjectProps {
@@ -161,19 +270,15 @@ interface SubjectProps {
 
 **Endpoint sugerido:** `GET /subjects` → retorna `SubjectProps[]`
 
-> **Nota:** O campo `color` é um token semântico (não uma cor CSS arbitrária). O front-end usa
-> esse valor para calcular a cor do avatar Yin-Yang via `getBlendedColor()` em `subjectUtils.ts`.
-> O back-end deve respeitar os valores do enum exatamente como definidos.
+> **Nota:** O campo `color` é um token semântico (não uma cor CSS arbitrária). O front-end usa esse valor para calcular a cor do avatar Yin-Yang via `getBlendedColor()` em `subjectUtils.ts`. O back-end deve respeitar os valores do enum exatamente como definidos.
 
 ---
 
-### 2. 🧙 PlayerCharacter (Personagem do Jogador)
+#### 2. 🧙 PlayerCharacter (Personagem do Jogador)
 
 > **MUDANÇA CRÍTICA — Sem "Classe/Arquétipo":**
 > O campo `role: string` (que representava classe como "Ranger", "Mago" etc.) **não existe mais**.
-> A propriedade `role` é agora um **array de objetos `SubjectProps[]`**, representando as matérias
-> cursadas pelo personagem (mínimo 1, máximo 2). A "classe" do personagem é derivada das matérias
-> escolhidas, não de um campo textual livre.
+> A propriedade `role` é agora um **array de objetos `SubjectProps[]`**, representando as matérias cursadas pelo personagem (mínimo 1, máximo 2).
 
 ```typescript
 interface PlayerCharacter {
@@ -191,7 +296,7 @@ interface PlayerCharacter {
 }
 ```
 
-#### Tabela Descritiva dos Campos:
+##### Tabela Descritiva dos Campos:
 
 | Campo | Tipo | Descrição |
 |-------|------|-----------|
@@ -236,12 +341,12 @@ interface PlayerCharacter {
 }
 ```
 
-**Regras de negócio:**
+##### Regras de negócio:
 - Máximo de **8 jogadores** ativos (`MAX_PLAYERS = 8`).
 - Quando `points` cruza de positivo para `<= 0`, o front-end **automaticamente adiciona 1 strike**. O back-end deve persistir esse valor atualizado.
 - `strikes` é limitado a `MAX_STRIKES = 4`.
 - O campo `playerId` é obrigatório e deve referenciar um `User` com `role: "PLAYER"`. Constraint `UNIQUE` necessária: um `User` pode ter no máximo **um** `PlayerCharacter` ativo.
-- **Regra de Negócio de `hasEarnedMark`:** O campo `hasEarnedMark` deve ser inicializado como `false` por padrão no banco de dados ao criar um novo personagem.
+- **Regra de Negócio de `hasEarnedMark`:** O campo `hasEarnedMark` deve ser inicializado como `false` por padrão ao criar um novo personagem.
 - **Persistência de `hasEarnedMark`:** Este campo é vital para o storytelling da sessão e deve ser persistido em requisições de `PATCH`. Apenas o papel "GM" tem permissão para alterar o status de `hasEarnedMark`.
 
 **Payload de criação (POST):**
@@ -262,7 +367,7 @@ interface PlayerCharacter {
 
 ---
 
-### 3. 👻 NPC (Personagem Não Jogável)
+#### 3. 👻 NPC (Personagem Não Jogável)
 
 Estrutura idêntica ao `PlayerCharacter`, exceto:
 - **Sem `playerId`** (NPCs não pertencem a um usuário).
@@ -278,14 +383,14 @@ interface NPC {
   strikes: number;
   dormitory: string;
   imageUrl?: string;       
-  role: SubjectProps[];    // Array de 1 ou 2 matérias (nunca string)
+  role: SubjectProps[];    
   familiarId: string;
   type?: string;
   hasEarnedMark: boolean;  
 }
 ```
 
-#### Tabela Descritiva dos Campos:
+##### Tabela Descritiva dos Campos:
 
 | Campo | Tipo | Descrição |
 |-------|------|-----------|
@@ -302,26 +407,26 @@ interface NPC {
 | `hasEarnedMark` | `boolean` | Indica se o NPC conquistou a exibição de suas Marcas de Disciplina. |
 
 **Regras de negócio:**
-- **Regra de Negócio de `hasEarnedMark`:** O campo `hasEarnedMark` deve ser inicializado como `false` por padrão no banco de dados ao criar um novo NPC.
+- **Regra de Negócio de `hasEarnedMark`:** O campo `hasEarnedMark` deve ser inicializado como `false` por padrão ao criar um novo NPC.
 - **Persistência de `hasEarnedMark`:** Este campo é vital para o storytelling da sessão e deve ser persistido em requisições de `PATCH`. Apenas o papel "GM" tem permissão para alterar o status de `hasEarnedMark`.
 
 ---
 
-### 4. 🦊 Familiar
+#### 4. 🦊 Familiar
 
 ```typescript
 interface Familiar {
   id: string;
   name: string;
+  imageUrl?: string;
 }
 ```
 
-> Familiares são criados pelo GM via painel Admin e vinculados a personagens pelo campo `familiarId`.
-> O front-end usa o ID `"none"` como sentinela quando nenhum familiar está associado.
+> Familiares são criados pelo GM via painel Admin e vinculados a personagens pelo campo `familiarId`. O front-end usa o ID `"none"` como sentinela quando nenhum familiar está associado.
 
 ---
 
-### 5. 🤝 Matriz de Amizade (Relationship)
+#### 5. 🤝 Matriz de Amizade (Relationship)
 
 A matriz de amizade é uma **tabela associativa** (relação muitos-para-muitos) que mapeia a relação de cada NPC com cada PlayerCharacter.
 
@@ -334,18 +439,7 @@ interface Relationship {
 }
 ```
 
-**Exemplo de JSON de Relacionamento (Relationship):**
-
-```json
-{
-  "id": "rel-001",
-  "player": "char-abc123",
-  "npc": "npc-def456",
-  "level": 3
-}
-```
-
-#### Escala de Níveis de Amizade
+##### Escala de Níveis de Amizade:
 
 | Valor | Rótulo                |
 |-------|-----------------------|
@@ -359,71 +453,28 @@ interface Relationship {
 | `+3`  | 😄 Amigo              |
 | `+4`  | 🌟 Grande Amigo       |
 
-#### Permissões de Visão da Matriz
+##### Permissões de Visão da Matriz:
+- **O GM** visualiza e edita a matriz completa de **todos** os jogadores versus todos os NPCs.
+- **O PLAYER** visualiza **apenas a própria linha de amizade** (o relacionamento do *seu* personagem com cada NPC). O front-end filtra por `activeCharacterId`. O PLAYER possui permissão para editar os próprios pontos de amizade com os NPCs.
 
-**O GM** visualiza e edita a matriz completa de **todos** os jogadores versus todos os NPCs.
-
-**O PLAYER** visualiza **apenas a própria linha de amizade** (o relacionamento do *seu* personagem com cada NPC). O front-end filtra por `activeCharacterId` — o ID do `PlayerCharacter` vinculado ao `User` logado via `playerId`. O PLAYER possui permissão para **editar os próprios pontos** (botões `+` e `−` ativos somente na própria linha).
-
-#### Regras de negócio da Matriz:
-
-- **Cruzamento Total (N x M):** A matriz de amizades é gerada pelo cruzamento completo de **todos os NPCs** com **todos os PlayerCharacters**. Ou seja, para cada NPC e cada PlayerCharacter registrado, deve existir uma entrada correspondente na tabela associativa de relacionamentos (se houver N players e M NPCs no banco, haverá exatamente N x M registros de relacionamento).
+##### Regras de negócio da Matriz:
+- **Cruzamento Total (N x M):** A matriz de amizades é gerada pelo cruzamento completo de **todos os NPCs** com **todos os PlayerCharacters**.
 - **Criação de NPC:** Ao criar um **novo NPC**, o back-end deve gerar automaticamente um relacionamento com nível `0` (Neutro) para **cada `PlayerCharacter` ativo**.
 - **Criação de PlayerCharacter:** Ao criar um **novo PlayerCharacter**, o back-end deve gerar automaticamente um relacionamento com nível `0` (Neutro) para **cada `NPC` ativo**.
-- **Exclusão em Cascata:** Ao **excluir um PlayerCharacter**, todas as entradas de amizade desse personagem devem ser removidas em cascata do banco. Da mesma forma, excluir um NPC deve apagar todos os relacionamentos a ele associados.
+- **Exclusão em Cascata:** Ao **excluir um PlayerCharacter**, todas as entradas de amizade desse personagem devem ser removidas em cascata do banco. Da mesma forma para NPCs.
 - **Validação de Limites:** O `level` é sempre **inteiro** e **clampado entre -4 e +4** (tanto no front-end quanto com validação obrigatória no back-end).
 
 ---
 
-### 6. 🎨 Fusão Dinâmica de Cores (Yin-Yang) — Lógica de UI
+#### 6. 🎨 Fusão Dinâmica de Cores (Yin-Yang) — Lógica de UI
 
-Quando um personagem possui **duas matérias**, o front-end calcula automaticamente uma cor resultant mesclando as propriedades `color` das duas matérias para renderizar o avatar Yin-Yang bicolor.
-
-Esta lógica é **100% de responsabilidade do cliente** e está implementada em `src/utils/subjectUtils.ts`. **O back-end apenas retorna o array `role` com as matérias; nenhuma lógica de fusão visual deve ser persistida no banco.**
+Quando um personagem possui **duas matérias**, o front-end calcula automaticamente uma cor resultante mesclando as propriedades `color` das duas matérias para renderizar o avatar Yin-Yang bicolor. Esta lógica é **100% de responsabilidade do cliente** e está implementada em `src/utils/subjectUtils.ts`. **O back-end apenas retorna o array `role` com as matérias; nenhuma lógica de fusão visual deve ser persistida no banco.**
 
 ---
 
-### 7. 🗂️ Rotas de API Sugeridas
+#### 7. 📦 Exemplo de Payload Completo (GET /session)
 
-| Ação                             | Método   | Rota                        | Autenticação |
-|----------------------------------|----------|-----------------------------|--------------|
-| Login                            | `POST`   | `/auth/login`               | Pública      |
-| Listar matérias (seed)           | `GET`    | `/subjects`                 | Autenticada  |
-| Listar contas de jogadores       | `GET`    | `/admin/users`              | GM           |
-| Cadastrar conta de jogador       | `POST`   | `/admin/users`              | GM           |
-| Listar familiares                | `GET`    | `/admin/familiars`          | GM           |
-| Cadastrar familiar               | `POST`   | `/admin/familiars`          | GM           |
-| Listar personagens jogadores     | `GET`    | `/characters/players`       | Autenticada  |
-| Criar personagem jogador         | `POST`   | `/characters/players`       | GM           |
-| Atualizar pontos / strikes       | `PATCH`  | `/characters/players/:id`   | GM / PLAYER* |
-| Excluir personagem jogador       | `DELETE` | `/characters/players/:id`   | GM           |
-| Listar NPCs                      | `GET`    | `/characters/npcs`          | Autenticada  |
-| Criar NPC                        | `POST`   | `/characters/npcs`          | GM           |
-| Excluir NPC                      | `DELETE` | `/characters/npcs/:id`      | GM           |
-| Listar relacionamentos           | `GET`    | `/relationships`            | Autenticada  |
-| Atualizar nível de amizade       | `PATCH`  | `/relationships/:id`        | GM / PLAYER* |
-
-> *PLAYER pode fazer `PATCH` somente nos recursos que pertencem ao seu `activeCharacterId`.
-
----
-
-### 8. 📦 Resumo das Entidades e Origens
-
-| Entidade            | Criada por                        | Rota de criação                |
-|---------------------|-----------------------------------|--------------------------------|
-| `User (GM)`         | Seed / configuração inicial       | —                              |
-| `User (PLAYER)`     | GM via Painel Administrativo      | `POST /admin/users`            |
-| `Familiar`          | GM via Painel Administrativo      | `POST /admin/familiars`        |
-| `PlayerCharacter`   | GM via painel principal           | `POST /characters/players`     |
-| `NPC`               | GM via painel principal           | `POST /characters/npcs`        |
-| `Subject`           | Seed estático (regras do sistema) | —                              |
-| `Relationship`      | Gerado automaticamente            | Criado pelo back-end ao criar NPC/Player |
-
----
-
-### 9. 📦 Exemplo de Payload Completo (GET /session)
-
-Abaixo está um exemplo de payload completo para recuperar o estado ativo de uma sessão de jogo. Note que ele já reflete as novas regras, como os campos `role` mapeados como arrays de objetos `SubjectProps`, o vínculo via `playerId`/`familiarId` e a lista flat de relacionamentos.
+Abaixo está um exemplo de payload completo para recuperar o estado ativo de uma sessão de jogo. Ele reflete as novas regras, como os campos `role` mapeados como arrays de objetos `SubjectProps`, o vínculo via `playerId`/`familiarId` e a lista flat de relacionamentos.
 
 ```json
 {
@@ -483,6 +534,7 @@ Abaixo está um exemplo de payload completo para recuperar o estado ativo de uma
     }
   ]
 }
+```
 
 ---
 
