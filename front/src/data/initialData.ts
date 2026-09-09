@@ -102,9 +102,84 @@ export const mockFamiliars: Familiar[] = [
   { id: "none", name: "Nenhum Familiar" },
 ];
 
-// ── Estado inicial — painel inicia completamente vazio ────────────────────────
-// A Mestre popula tudo do zero via interface administrativa.
-export const INITIAL_PLAYERS: PlayerCharacter[] = [];
+// ── Estado inicial ────────────────────────────────────────────────────────────
+// Personagens de seed vinculados a cada conta PLAYER do mockUsers.
+// playerId deve bater exatamente com User.id para que o Passo 3 do login
+// consiga filtrar os personagens do jogador autenticado.
+export const INITIAL_PLAYERS: PlayerCharacter[] = [
+  {
+    id: "char-duda-01",
+    name: "Duda",
+    initials: "DU",
+    playerId: "user-duda",
+    points: 0,
+    strikes: 0,
+    dormitory: "Aequilibrium",
+    role: [],
+    familiarId: "none",
+    hasEarnedMark: false,
+  },
+  {
+    id: "char-pablo-01",
+    name: "Pablo",
+    initials: "PA",
+    playerId: "user-pablo",
+    points: 0,
+    strikes: 0,
+    dormitory: "Aequilibrium",
+    role: [],
+    familiarId: "none",
+    hasEarnedMark: false,
+  },
+  {
+    id: "char-luis-01",
+    name: "Luis",
+    initials: "LU",
+    playerId: "user-luis",
+    points: 0,
+    strikes: 0,
+    dormitory: "Aequilibrium",
+    role: [],
+    familiarId: "none",
+    hasEarnedMark: false,
+  },
+  {
+    id: "char-jp-01",
+    name: "JP",
+    initials: "JP",
+    playerId: "user-jp",
+    points: 0,
+    strikes: 0,
+    dormitory: "Aequilibrium",
+    role: [],
+    familiarId: "none",
+    hasEarnedMark: false,
+  },
+  {
+    id: "char-gusta-01",
+    name: "Gusta",
+    initials: "GU",
+    playerId: "user-gusta",
+    points: 0,
+    strikes: 0,
+    dormitory: "Aequilibrium",
+    role: [],
+    familiarId: "none",
+    hasEarnedMark: false,
+  },
+  {
+    id: "char-gabriel-01",
+    name: "Gabriel",
+    initials: "GA",
+    playerId: "user-gabriel",
+    points: 0,
+    strikes: 0,
+    dormitory: "Aequilibrium",
+    role: [],
+    familiarId: "none",
+    hasEarnedMark: false,
+  },
+];
 export const INITIAL_NPCS: NPC[] = [];
 export const INITIAL_FAMILIARS: Familiar[] = [];
 export const INITIAL_RELATIONSHIPS: import("./types").Relationship[] = [];
