@@ -16,7 +16,7 @@ import { YinYang } from "./components/shared/YinYang";
 import { AddCharacterModal } from "./components/shared/AddCharacterModal";
 import { AdminModal } from "./components/shared/AdminModal";
 // ── Data + types ──────────────────────────────────────────────────────────────
-import { INITIAL_PLAYERS, INITIAL_FAMILIARS, MAX_PLAYERS, MAX_STRIKES, mockUsers } from "../data/initialData";
+import { INITIAL_PLAYERS, INITIAL_FAMILIARS, MAX_STRIKES, mockUsers } from "../data/initialData";
 
 import type { User, Familiar } from "../data/types";
 // Player e Npc sao aliases/extensoes exportados pelos proprios card-components,
@@ -70,7 +70,7 @@ function AppInner() {
     return npcs.filter((npc) => npc.name.toLowerCase().includes(q));
   }, [npcs, npcSearch]);
 
-  const canAddPlayer = players.length < MAX_PLAYERS;
+
 
   // ── Point change — auto-adds a strike when a player crosses zero ─────────────
   // Negative values are intentionally allowed (penalties can drop points below 0).
@@ -194,7 +194,6 @@ function AppInner() {
   // ── Add character (unified handler for both modes) ───────────────────────────
   const handleAdd = (data: Record<string, unknown>) => {
     if (addModal === "player") {
-      if (!canAddPlayer) return;
       const id = newId();
       const newPlayer: Player = {
         id,
@@ -253,10 +252,10 @@ function AppInner() {
           <SectionHeader
             number="01"
             title="Jogadores"
-            subtitle={`${players.length} de ${MAX_PLAYERS} vagas preenchidas — ajuste os pontos em tempo real`}
+            subtitle={`${players.length} preenchidas — ajuste os pontos em tempo real`}
           >
             {/* Botão de adicionar jogador — oculto para PLAYERs */}
-            {canAddPlayer && !isPlayer && (
+            {!isPlayer && (
               <AddButton label="Adicionar Jogador" onClick={() => setAddModal("player")} />
             )}
           </SectionHeader>
@@ -279,18 +278,14 @@ function AppInner() {
               />
             ))}
 
-            {/* Add-player slot — visível enquanto abaixo do limite E usuário for GM */}
-            {canAddPlayer && !isPlayer && (
+            {/* Add-player slot */}
+            {!isPlayer && (
               <AddSlot
                 onClick={() => setAddModal("player")}
                 label="Adicionar Jogador"
-                sublabel={`${MAX_PLAYERS - players.length} ${MAX_PLAYERS - players.length === 1 ? "vaga restante" : "vagas restantes"}`}
                 minHeight={320}
               />
             )}
-
-            {/* Limit-reached placeholder */}
-            {!canAddPlayer && <LimitReachedSlot minHeight={320} />}
           </div>
         </section>
 

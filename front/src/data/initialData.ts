@@ -16,7 +16,6 @@ export type { User, SubjectProps, Familiar, PlayerCharacter, NPC };
 export type { Relationship } from "./types";
 
 // ── Global constants ──────────────────────────────────────────────────────────
-export const MAX_PLAYERS = 8;
 export const MAX_STRIKES = 4;
 
 // ── Contas fixas da campanha ──────────────────────────────────────────────────
