@@ -17,6 +17,31 @@ A **Academia Aequilibrium** é um painel web criado para a **Mestre** gerenciar 
 
 ---
 
+## 📁 Estrutura do Repositório (Monorepo)
+
+O projeto está organizado em formato monorepo para permitir o **deploy independente** de front-end e back-end em domínios separados:
+
+```text
+├── front/        # Aplicação Front-end (React + TypeScript + Vite + TailwindCSS)
+├── back/         # API e serviços Back-end (deploy em domínio separado)
+├── README.md     # Documentação geral e contratos de API
+└── package.json  # Scripts de conveniência da raiz
+```
+
+### Como Executar o Frontend
+
+```bash
+# Opção 1: Executando diretamente da raiz
+npm run dev:front
+
+# Opção 2: Entrando na pasta front
+cd front
+npm install
+npm run dev
+```
+
+---
+
 ## ✨ Recursos
 
 ### 👥 Gerenciamento de Jogadores
