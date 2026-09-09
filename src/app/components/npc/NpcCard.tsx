@@ -4,7 +4,8 @@ import { AvatarDropzone } from "../shared/AvatarDropzone";
 import { FriendshipMatrix } from "./FriendshipMatrix";
 import type { Player } from "../player/PlayerCard";
 import type { Friendship } from "./FriendshipMatrix";
-import type { NPC, User, Familiar } from "../../../data/types";
+import type { NPC, User, Familiar, SubjectProps } from "../../../data/types";
+import { getBlendedColor, getBlendedLabel, getMarkUrl } from "../../../utils/subjectUtils";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -52,10 +53,6 @@ interface NpcCardProps {
   onToggleMark: (characterId: string, isNpc: boolean) => void;
 }
 
-// ── Subject Badge ────────────────────────────────────────────────────────────
-
-import type { SubjectProps } from "../../../data/types";
-import { getBlendedColor, getBlendedLabel, getMarkUrl } from "../../../utils/subjectUtils";
 
 // Paleta de estilos compartilhada por cor final (pura ou mesclada)
 const SUBJECT_STYLES: Record<SubjectProps["color"], { bg: string; text: string }> = {

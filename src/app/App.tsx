@@ -1,5 +1,6 @@
 import { useState, useMemo } from "react";
-import { Plus, LogOut, ShieldCheck, Search } from "lucide-react";
+import { Plus, Search } from "lucide-react";
+
 
 // ── Auth ────────────────────────────────────────────────────────────────────────────────
 import { AuthProvider, useAuth } from "./context/AuthContext";
@@ -15,7 +16,8 @@ import { YinYang } from "./components/shared/YinYang";
 import { AddCharacterModal } from "./components/shared/AddCharacterModal";
 import { AdminModal } from "./components/shared/AdminModal";
 // ── Data + types ──────────────────────────────────────────────────────────────
-import { INITIAL_PLAYERS, INITIAL_NPCS, INITIAL_FAMILIARS, MAX_PLAYERS, MAX_STRIKES, mockUsers } from "../data/initialData";
+import { INITIAL_PLAYERS, INITIAL_FAMILIARS, MAX_PLAYERS, MAX_STRIKES, mockUsers } from "../data/initialData";
+
 import type { User, Familiar } from "../data/types";
 // Player e Npc sao aliases/extensoes exportados pelos proprios card-components,
 // mantendo a compatibilidade com o sistema de friendships da UI.
@@ -41,13 +43,16 @@ export default function App() {
 // ── AppInner ────────────────────────────────────────────────────────────────────────────────
 
 function AppInner() {
-  const { currentUser, activeCharacterId, logout } = useAuth();
-  const isGm     = currentUser?.role === "GM";
+  const { currentUser, activeCharacterId } = useAuth();
+
   const isPlayer = currentUser?.role === "PLAYER";
+
 
   // ── Core data state ──────────────────────────────────────────────────────────
   const [players, setPlayers]   = useState<Player[]>(INITIAL_PLAYERS as Player[]);
-  const [npcs, setNpcs]         = useState<Npc[]>(INITIAL_NPCS as Npc[]);
+  // INITIAL_NPCS tem tipo NPC[] mas Npc requer friendships[].
+  // Como o array inicial é sempre vazio, inicializamos com [] tipado corretamente.
+  const [npcs, setNpcs]         = useState<Npc[]>([]);
 
   // ── Admin-managed state (live lists fed to modal selectors) ──────────────────
   const [users, setUsers]       = useState<User[]>(mockUsers);

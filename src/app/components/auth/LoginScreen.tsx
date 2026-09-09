@@ -287,7 +287,10 @@ export function LoginScreen({ players }: LoginScreenProps) {
   }
 
   // ── Personagens deste jogador vindos de INITIAL_PLAYERS (e players do estado) ──
-  const allPlayers = Array.from(new Set([...INITIAL_PLAYERS, ...players]));
+  // Usa Map por id para deduplicar corretamente (Set compara por referência em objetos).
+  const allPlayers = Array.from(
+    new Map([...INITIAL_PLAYERS, ...players].map((p) => [p.id, p])).values()
+  );
   const myCharacters = pendingPlayer
     ? allPlayers.filter((p) => p.playerId === pendingPlayer.id)
     : [];

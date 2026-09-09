@@ -57,7 +57,7 @@ export function AvatarDropzone({ initials, size = 96, onImageChange, imageUrl: e
     : hasImage
     ? { border: "2px solid #262626" }
     : dimmed
-    ? { border: "2px dashed #3a3a3a", opacity: isHovering ? 1 : 0.3 }
+    ? { border: "2px dashed #3a3a3a", opacity: 0.3 }  // fixed: isHovering always false here
     : { border: "2px dashed #3a3a3a" };
 
   return (
