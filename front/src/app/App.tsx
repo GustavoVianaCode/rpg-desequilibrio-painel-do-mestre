@@ -1,4 +1,6 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
+
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3333";
 import { Plus, Search } from "lucide-react";
 
 
@@ -13,7 +15,7 @@ import { PlayerCard } from "./components/player/PlayerCard";
 import { NpcCard } from "./components/npc/NpcCard";
 // ── Shared ────────────────────────────────────────────────────────────────────
 import { YinYang } from "./components/shared/YinYang";
-import { AddCharacterModal } from "./components/shared/AddCharacterModal";
+import { AddCharacterModal, deriveInitials } from "./components/shared/AddCharacterModal";
 import { AdminModal } from "./components/shared/AdminModal";
 // ── Data + types ──────────────────────────────────────────────────────────────
 import { INITIAL_PLAYERS, INITIAL_FAMILIARS, MAX_STRIKES, mockUsers } from "../data/initialData";
@@ -49,14 +51,42 @@ function AppInner() {
 
 
   // ── Core data state ──────────────────────────────────────────────────────────
-  const [players, setPlayers]   = useState<Player[]>(INITIAL_PLAYERS as Player[]);
+  const [players, setPlayers]   = useState<Player[]>([]);
   // INITIAL_NPCS tem tipo NPC[] mas Npc requer friendships[].
   // Como o array inicial é sempre vazio, inicializamos com [] tipado corretamente.
   const [npcs, setNpcs]         = useState<Npc[]>([]);
 
-  // ── Admin-managed state (live lists fed to modal selectors) ──────────────────
-  const [users, setUsers]       = useState<User[]>(mockUsers);
-  const [familiars, setFamiliars] = useState<Familiar[]>(INITIAL_FAMILIARS);
+  const [users, setUsers]       = useState<User[]>([]);
+  const [familiars, setFamiliars] = useState<Familiar[]>([]);
+  const [dormitories, setDormitories] = useState<{ id: number; name: string; total_slots: number; occupied_slots: number }[]>([]);
+
+  // Fetch data from backend on mount
+  useEffect(() => {
+    const token = localStorage.getItem("token");
+    const headers = token ? { Authorization: `Bearer ${token}` } : {};
+    Promise.all([
+      fetch(`${API_URL}/session`, { headers }).then((r) => (r.ok ? r.json() : null)),
+      fetch(`${API_URL}/admin/users`, { headers }).then((r) => (r.ok ? r.json() : null)),
+      fetch(`${API_URL}/admin/familiars`, { headers }).then((r) => (r.ok ? r.json() : null)),
+      fetch(`${API_URL}/dormitories/`, { headers }).then((r) => (r.ok ? r.json() : null)),
+    ]).then(([session, adminUsers, adminFamiliars, dormData]) => {
+      if (session) {
+        setPlayers(session.players || []);
+        let loadedNpcs = session.npcs || [];
+        if (session.relationships) {
+          const rels = session.relationships as { player_id: string; npc_id: string; level: number }[];
+          loadedNpcs = loadedNpcs.map((npc: any) => {
+            const npcFriendships = rels.filter((r: any) => (r.npc ?? r.npc_id) === npc.id).map((r: any) => ({ playerId: r.player ?? r.player_id, level: r.level }));
+            return { ...npc, friendships: npcFriendships };
+          });
+        }
+        setNpcs(loadedNpcs);
+      }
+      if (adminUsers) setUsers(Array.isArray(adminUsers) ? adminUsers : adminUsers.users || []);
+      if (adminFamiliars) setFamiliars(Array.isArray(adminFamiliars) ? adminFamiliars : adminFamiliars.familiars || []);
+      if (dormData) setDormitories(Array.isArray(dormData) ? dormData : dormData.dormitories || []);
+    });
+  }, []);
 
   // null = closed, "player" | "npc" = open for that mode
   const [addModal, setAddModal]   = useState<ModalMode | null>(null);
@@ -75,29 +105,30 @@ function AppInner() {
   // ── Point change — auto-adds a strike when a player crosses zero ─────────────
   // Negative values are intentionally allowed (penalties can drop points below 0).
   const handlePointChange = (id: string, delta: number) => {
-    setPlayers((prev) =>
-      prev.map((p) => {
-        if (p.id !== id) return p;
-        const newPoints = p.points + delta;
-        const hitZero = p.points > 0 && newPoints <= 0;
-        return {
-          ...p,
-          points: newPoints,           // no lower bound — negatives are allowed
-          strikes: hitZero ? Math.min(MAX_STRIKES, p.strikes + 1) : p.strikes,
-        };
-      })
-    );
+    const target = players.find((p) => p.id === id);
+    if (!target) return;
+    const newPoints = target.points + delta;
+    const hitZero = target.points > 0 && newPoints <= 0;
+    const newStrikes = hitZero ? Math.min(MAX_STRIKES, target.strikes + 1) : target.strikes;
+    setPlayers((prev) => prev.map((p) => p.id === id ? { ...p, points: newPoints, strikes: newStrikes } : p));
+    fetch(`${API_URL}/characters/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${localStorage.getItem("token") || ""}` },
+      body: JSON.stringify({ points: newPoints, strikes: newStrikes }),
+    }).catch(() => {});
   };
 
   // ── Manual strike override ───────────────────────────────────────────────────
   const handleStrikeChange = (id: string, delta: number) => {
-    setPlayers((prev) =>
-      prev.map((p) =>
-        p.id === id
-          ? { ...p, strikes: Math.max(0, Math.min(MAX_STRIKES, p.strikes + delta)) }
-          : p
-      )
-    );
+    const target = players.find((p) => p.id === id);
+    if (!target) return;
+    const newStrikes = Math.max(0, Math.min(MAX_STRIKES, target.strikes + delta));
+    setPlayers((prev) => prev.map((p) => (p.id === id ? { ...p, strikes: newStrikes } : p)));
+    fetch(`${API_URL}/characters/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${localStorage.getItem("token") || ""}` },
+      body: JSON.stringify({ strikes: newStrikes }),
+    }).catch(() => {});
   };
 
   // ── Avatar upload ────────────────────────────────────────────────────────────
@@ -137,23 +168,39 @@ function AppInner() {
 
   // ── Friendship matrix ────────────────────────────────────────────────────────
   const handleFriendshipChange = (npcId: string, playerId: string, delta: number) => {
-    setNpcs((prev) =>
-      prev.map((npc) => {
+    setNpcs((prev) => {
+      const updatedNpcs = prev.map((npc) => {
         if (npc.id !== npcId) return npc;
+        const f = (npc.friendships || []).find((f) => f.playerId === playerId);
+        const currentLevel = f?.level ?? 0;
+        const newLevel = Math.max(-4, Math.min(4, currentLevel + delta));
         return {
           ...npc,
-          friendships: npc.friendships.map((f) =>
-            f.playerId === playerId
-              ? { ...f, level: Math.max(-4, Math.min(4, f.level + delta)) }
-              : f
+          friendships: (npc.friendships || []).map((f) =>
+            f.playerId === playerId ? { ...f, level: newLevel } : f
           ),
         };
-      })
-    );
+      });
+      // POST newLevel after computing
+      const targetNpc = updatedNpcs.find((n) => n.id === npcId);
+      const targetF = targetNpc?.friendships?.find((f) => f.playerId === playerId);
+      const finalLevel = targetF?.level ?? 0;
+      fetch(`${API_URL}/relationships/${playerId}/${npcId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${localStorage.getItem("token") || ""}` },
+        body: JSON.stringify({ level: finalLevel }),
+      }).catch(() => {});
+      return updatedNpcs;
+    });
   };
 
   // ── Delete player (also cleans up friendship entries in all NPCs) ─────────────
   const handleDeletePlayer = (id: string) => {
+    const token = localStorage.getItem("token") || "";
+    fetch(`${API_URL}/characters/${id}`, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${token}` },
+    }).then(async (r) => {
     setPlayers((prev) => prev.filter((p) => p.id !== id));
     setNpcs((prev) =>
       prev.map((npc) => ({
@@ -194,44 +241,67 @@ function AppInner() {
   // ── Add character (unified handler for both modes) ───────────────────────────
   const handleAdd = (data: Record<string, unknown>) => {
     if (addModal === "player") {
-      const id = newId();
-      const newPlayer: Player = {
-        id,
-        name: String(data.name ?? ""),
-        initials: String(data.initials ?? ""),
-        points: 0,
-        familiarId: String(data.familiarId ?? familiars[0]?.id ?? "none"),
-        dormitory: String(data.dormitory ?? "—"),
-        strikes: 0,
-        role: Array.isArray(data.role) ? (data.role as Player["role"]) : [],
-        playerId: String(data.playerId ?? "user-guest"),
-        hasEarnedMark: false,
-      };
-      setPlayers((prev) => [...prev, newPlayer]);
-      // Registra este novo jogador em todos os NPCs existentes
-      setNpcs((prev) =>
-        prev.map((npc) => ({
-          ...npc,
-          friendships: [...npc.friendships, { playerId: id, level: 0 }],
-        }))
-      );
+      fetch(`${API_URL}/characters/`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${localStorage.getItem("token") || ""}` },
+        body: JSON.stringify({
+          character_type: "PLAYER",
+          name: String(data.name ?? ""),
+          initials: String(data.initials ?? ""),
+          dormitory: String(data.dormitory ?? "—"),
+          familiar_id: String(data.familiarId ?? "none"),
+          player_id: String(data.playerId ?? ""),
+          role_subject_ids: Array.isArray(data.role) ? (data.role as any[]).map((r: any) => r.id) : [],
+        }),
+      }).then((res) => res.json()).then((char) => {
+        if (char && char.id) {
+          const newPlayer: Player = {
+            id: char.id,
+            name: char.name,
+            initials: char.initials || deriveInitials(char.name),
+            points: char.points ?? 0,
+            familiarId: char.familiar_id ?? "none",
+            dormitory: char.dormitory ?? "—",
+            strikes: char.strikes ?? 0,
+            role: Array.isArray(data.role) ? (data.role as Player["role"]) : [],
+            playerId: char.player_id ?? String(data.playerId ?? "user-guest"),
+            hasEarnedMark: false,
+          };
+          setPlayers((prev) => [...prev, newPlayer]);
+          setNpcs((prev) => prev.map((npc) => ({ ...npc, friendships: [...npc.friendships, { playerId: char.id, level: 0 }] })));
+        }
+      }).catch(() => {});
     } else if (addModal === "npc") {
-      const id = newId();
-      const friendships = players.map((p) => ({ playerId: p.id, level: 0 }));
-      const newNpc: Npc = {
-        id,
-        name: String(data.name ?? ""),
-        type: "",
-        initials: String(data.initials ?? ""),
-        points: 0,
-        strikes: 0,
-        familiarId: String(data.familiarId ?? familiars[0]?.id ?? "none"),
-        dormitory: String(data.dormitory ?? "—"),
-        role: Array.isArray(data.role) ? (data.role as Npc["role"]) : [],
-        friendships,
-        hasEarnedMark: false,
-      };
-      setNpcs((prev) => [...prev, newNpc]);
+      fetch(`${API_URL}/characters/`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${localStorage.getItem("token") || ""}` },
+        body: JSON.stringify({
+          character_type: "NPC",
+          name: String(data.name ?? ""),
+          initials: String(data.initials ?? ""),
+          dormitory: String(data.dormitory ?? "—"),
+          familiar_id: String(data.familiarId ?? "none"),
+          role_subject_ids: Array.isArray(data.role) ? (data.role as any[]).map((r: any) => r.id) : [],
+          npc_type: String(data.type ?? ""),
+        }),
+      }).then((res) => res.json()).then((char) => {
+        if (char && char.id) {
+          const newNpc: Npc = {
+            id: char.id,
+            name: char.name,
+            type: char.npc_type || String(data.type ?? ""),
+            initials: char.initials || deriveInitials(char.name),
+            points: char.points ?? 0,
+            strikes: char.strikes ?? 0,
+            familiarId: char.familiar_id ?? "none",
+            dormitory: char.dormitory ?? "—",
+            role: Array.isArray(data.role) ? (data.role as Npc["role"]) : [],
+            friendships: players.map((p) => ({ playerId: p.id, level: 0 })),
+            hasEarnedMark: false,
+          };
+          setNpcs((prev) => [...prev, newNpc]);
+        }
+      }).catch(() => {});
     }
     setAddModal(null);
   };
@@ -375,6 +445,7 @@ function AppInner() {
           onClose={() => setAddModal(null)}
           users={users}
           familiars={familiars}
+          dormitories={dormitories}
         />
       )}
 

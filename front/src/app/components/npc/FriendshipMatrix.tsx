@@ -141,7 +141,7 @@ export function FriendshipMatrix({
   activeCharacterId,
 }: FriendshipMatrixProps) {
   const getLevel = (playerId: string) =>
-    friendships.find((f) => f.playerId === playerId)?.level ?? 0;
+    (friendships || []).find((f) => f.playerId === playerId)?.level ?? 0;
 
   // PLAYERs só vêem a própria linha; GMs vêem todos.
   const visiblePlayers =

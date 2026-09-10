@@ -329,6 +329,7 @@ export function NpcCard({ npc, players, onFriendshipChange, onDelete, onToggleMa
 
       {/* Relationship matrix — extracted sub-component */}
       <FriendshipMatrix
+        key={npc.id + "-rev-" + (npc.friendships?.map((f) => f.playerId + f.level).join(",") ?? "")}
         npcId={npc.id}
         players={players}
         friendships={npc.friendships}

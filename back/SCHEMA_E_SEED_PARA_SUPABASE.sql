@@ -89,3 +89,20 @@ INSERT INTO public.subjects (id, name, color, icon) VALUES
 ('Voar', 'Voo', 'black', 'broom'),
 ('Historia', 'História da Magia', 'black', 'book')
 ON CONFLICT (id) DO NOTHING;
+-- INSERT ADMIN (GM) --
+INSERT INTO public.users (id, name, email, password_hash, role) VALUES ('a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11', 'Mestre', 'admin@rpg.com', '$2b$10$I6I/0cBpdpDmsPFH.l3Jkuf06HcMtYOFU2k4BMz0Fv4VHuej0BBF2', 'GM') ON CONFLICT (email) DO NOTHING;
+
+-- Dormitórios com vagas (tabela para o painel)
+CREATE TABLE IF NOT EXISTS dormitories (
+  id SERIAL PRIMARY KEY,
+  name TEXT NOT NULL UNIQUE,
+  total_slots INTEGER NOT NULL DEFAULT 4,
+  occupied_slots INTEGER NOT NULL DEFAULT 0 CHECK (occupied_slots >= 0 AND occupied_slots <= total_slots)
+);
+
+INSERT INTO dormitories (name, total_slots, occupied_slots) VALUES
+('A', 20, 0),
+('B', 20, 0),
+('C', 20, 0),
+('D', 20, 0)
+ON CONFLICT (name) DO NOTHING;

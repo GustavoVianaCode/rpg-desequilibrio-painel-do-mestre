@@ -18,15 +18,14 @@ interface AddCharacterModalProps {
   mode: ModalMode;
   onAdd: (data: Record<string, unknown>) => void;
   onClose: () => void;
-  /** Player accounts available for selection (GM-managed, passed from App state). */
   users?: User[];
-  /** Familiars available for selection (GM-managed, passed from App state). */
   familiars?: Familiar[];
+  dormitories?: { id: number; name: string; total_slots: number; occupied_slots: number }[];
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-function deriveInitials(name: string): string {
+export function deriveInitials(name: string): string {
   return name
     .trim()
     .split(/\s+/)
@@ -44,7 +43,7 @@ function deriveInitials(name: string): string {
  * Player fields (top → bottom): Nome · Matéria · Conta do Jogador · Familiar · Dormitório
  * NPC fields   (top → bottom): Nome · Matéria · Familiar · Dormitório
  */
-export function AddCharacterModal({ mode, onAdd, onClose, users = [], familiars = [] }: AddCharacterModalProps) {
+export function AddCharacterModal({ mode, onAdd, onClose, users = [], familiars = [], dormitories = [] }: AddCharacterModalProps) {
   const [name, setName]               = useState("");
   const [playerId, setPlayerId]       = useState("");   // player only — ID of chosen player User
   const [selectedSubjects, setSelectedSubjects] = useState<SubjectProps[]>([]); // 1–2 subjects
@@ -228,12 +227,20 @@ export function AddCharacterModal({ mode, onAdd, onClose, users = [], familiars 
           </SelectField>
 
           {/* Field 4 — Dormitório (shared) */}
-          <Field
-            label="Dormitório"
-            value={dormitory}
-            onChange={setDormitory}
-            placeholder="ex: Torre Norte, Ala Leste…"
-          />
+          <SelectField label="Dormitório">
+            <Select value={dormitory} onValueChange={setDormitory}>
+              <SelectTrigger className="bg-secondary border-border text-foreground data-[placeholder]:text-muted-foreground focus-visible:border-primary focus-visible:ring-0 rounded-none h-9" style={{ fontFamily: "var(--font-body)", fontSize: "0.85rem" }}>
+                <SelectValue placeholder="Selecione A / B / C / D…" />
+              </SelectTrigger>
+              <SelectContent className="bg-card border-border text-foreground rounded-none">
+                {dormitories.map((d) => (
+                  <SelectItem key={d.id} value={d.name} className="focus:bg-secondary focus:text-foreground" style={{ fontFamily: "var(--font-body)", fontSize: "0.85rem" }}>
+                    {d.name} ({d.total_slots - d.occupied_slots} vagas)
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </SelectField>
 
           {/* Avatar preview */}
           {name.trim() && (
