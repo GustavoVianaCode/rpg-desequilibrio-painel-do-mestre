@@ -39,6 +39,32 @@ export async function adminRoutes(server: FastifyInstance) {
     }
   });
 
+  server.get("/familiars", async (request, reply) => {
+    const { data, error } = await supabase.from("familiars").select("*").order("name");
+    if (error) return reply.status(500).send({ error: error.message });
+    return data || [];
+  });
+
+  server.delete("/users/:id", async (request, reply) => {
+    const { id } = request.params as { id: string };
+    try {
+      await supabase.from("users").delete().eq("id", id);
+      return { deleted: true, id };
+    } catch (err) {
+      return reply.status(500).send({ error: "Erro ao excluir usuário" });
+    }
+  });
+
+  server.delete("/familiars/:id", async (request, reply) => {
+    const { id } = request.params as { id: string };
+    try {
+      await supabase.from("familiars").delete().eq("id", id);
+      return { deleted: true, id };
+    } catch (err) {
+      return reply.status(500).send({ error: "Erro ao excluir familiar" });
+    }
+  });
+
   server.post("/familiars", async (request, reply) => {
     const familiarSchema = z.object({
       id: z.string(),

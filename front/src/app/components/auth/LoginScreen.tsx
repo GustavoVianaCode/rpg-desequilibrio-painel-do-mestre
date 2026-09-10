@@ -257,27 +257,15 @@ export function LoginScreen({ players }: LoginScreenProps) {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-
-    const matchedUser = mockUsers.find(
-      (u) => u.name.trim() === username.trim() && u.password === password
-    );
-
-    if (!matchedUser) {
-      setError("Nome de usuário ou senha incorretos.");
-      return;
-    }
-
-    if (matchedUser.role !== selectedRole) {
-      setError(`Este usuário não possui acesso como ${selectedRole === "GM" ? "Mestre" : "Jogador"}.`);
-      return;
-    }
-
-    if (matchedUser.role === "GM") {
-      login(matchedUser);
-    } else {
-      setPendingPlayer(matchedUser);
+    try {
+      await login(username, password);
+      setError("");
+      // Se PLAYER logou, pode selecionar personagem depois; se GM, segue direto
+      // O AuthContext já setou currentUser via /auth/login
+    } catch (err: any) {
+      setError(err.message || "Login falhou");
     }
   }
 

@@ -170,23 +170,37 @@ function RegisterPlayerForm({ onSubmit }: { onSubmit: (user: User) => void }) {
   const [password, setPassword] = useState("rpg123");
   const [success, setSuccess]   = useState<string | null>(null);
 
-  const handle = (e: React.FormEvent) => {
+  const handle = async (e: React.FormEvent) => {
     e.preventDefault();
     const trimmed = name.trim();
     if (!trimmed) return;
 
-    const user: User = {
-      id: newId("user"),
+    const payload = {
       name: trimmed,
       email: `${trimmed.toLowerCase().replace(/\s+/g, ".")}@equilibrium.rpg`,
       password: password.trim() || "rpg123",
-      role: "PLAYER",
+      role: "PLAYER" as const,
     };
 
-    onSubmit(user);
-    setSuccess(`Conta "${trimmed}" cadastrada com sucesso!`);
-    setName("");
-    setPassword("rpg123");
+    try {
+      const apiUrl = (import.meta.env.VITE_API_URL as string) || "http://localhost:3333";
+      const res = await fetch(`${apiUrl}/admin/users`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${localStorage.getItem("token") || ""}`,
+        },
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) throw new Error("Falha ao cadastrar");
+      const data = await res.json();
+      onSubmit({ ...data, role: "PLAYER" } as User);
+      setSuccess(`Conta "${trimmed}" cadastrada!`);
+      setName("");
+      setPassword("rpg123");
+    } catch {
+      setSuccess("Erro ao salvar no banco.");
+    }
     setTimeout(() => setSuccess(null), 3000);
   };
 
@@ -250,21 +264,30 @@ function RegisterFamiliarForm({ onSubmit }: { onSubmit: (familiar: Familiar) => 
   const [familiarImage, setFamiliarImage] = useState<string | null>(null);
   const [success, setSuccess]         = useState<string | null>(null);
 
-  const handle = (e: React.FormEvent) => {
+  const handle = async (e: React.FormEvent) => {
     e.preventDefault();
     const trimmed = name.trim();
     if (!trimmed) return;
 
-    const familiar: Familiar = {
-      id: newId("fam"),
-      name: trimmed,
-      ...(familiarImage ? { imageUrl: familiarImage } : {}),
-    };
-
-    onSubmit(familiar);
-    setSuccess(`Familiar "${trimmed}" cadastrado com sucesso!`);
-    setName("");
-    setFamiliarImage(null);
+    const apiUrl = (import.meta.env.VITE_API_URL as string) || "http://localhost:3333";
+    try {
+      const res = await fetch(`${apiUrl}/admin/familiars`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${localStorage.getItem("token") || ""}`,
+        },
+        body: JSON.stringify({ id: `fam-${crypto.randomUUID().slice(0,8)}`, name: trimmed, image_url: familiarImage || undefined }),
+      });
+      if (!res.ok) throw new Error("Falha");
+      const data = await res.json();
+      onSubmit({ id: data.id, name: data.name, imageUrl: data.image_url } as Familiar);
+      setSuccess(`Familiar "${trimmed}" cadastrado!`);
+      setName("");
+      setFamiliarImage(null);
+    } catch {
+      setSuccess("Erro ao salvar no banco.");
+    }
     setTimeout(() => setSuccess(null), 3000);
   };
 

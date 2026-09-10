@@ -9,6 +9,7 @@ import { adminRoutes } from "./routes/admin";
 import { characterRoutes } from "./routes/characters";
 import { relationshipRoutes } from "./routes/relationships";
 import { uploadRoutes } from "./routes/upload";
+import { dormitoryRoutes } from "./routes/dormitories";
 
 // Extender a tipagem do FastifyRequest para incluir o user
 declare module "fastify" {
@@ -22,7 +23,9 @@ export const server: FastifyInstance = Fastify({
 });
 
 server.register(cors, {
-  origin: "*", // Permitir de qualquer lugar na fase de dev
+  origin: "*",
+  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization"],
 });
 
 server.register(multipart, {
@@ -61,6 +64,7 @@ server.register(adminRoutes, { prefix: "/admin" });
 server.register(characterRoutes, { prefix: "/characters" });
 server.register(relationshipRoutes, { prefix: "/relationships" });
 server.register(uploadRoutes, { prefix: "/upload" });
+server.register(dormitoryRoutes, { prefix: "/dormitories" });
 
 // Rota de Healthcheck
 server.get("/health", async () => {

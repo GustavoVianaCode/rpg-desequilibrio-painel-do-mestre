@@ -57,6 +57,12 @@ export async function characterRoutes(server: FastifyInstance) {
         await supabase.from("relationships").insert(relationships);
       }
 
+      // Atualizar vagas do dormitório ao criar
+      if (char.dormitory && char.dormitory !== "—") {
+        const { count: occ } = await supabase.from("characters").select("id", { count: "exact", head: true }).eq("dormitory", char.dormitory);
+        await supabase.from("dormitories").update({ occupied_slots: (occ || 0) + 1 }).eq("name", char.dormitory);
+      }
+
       return reply.status(201).send(char);
     } catch (err) {
       if (err instanceof z.ZodError) return reply.status(400).send({ error: "Dados inválidos", details: err.issues });
@@ -94,12 +100,42 @@ export async function characterRoutes(server: FastifyInstance) {
         .select()
         .single();
 
+      // Se mudou dormitory, atualizar vagas (simples: contar e atualizar)
+      if (updates.dormitory && updates.dormitory !== "—" && updates.dormitory !== current?.dormitory) {
+        const { count: occ } = await supabase.from("characters").select("id", { count: "exact", head: true }).eq("dormitory", updates.dormitory);
+        await supabase.from("dormitories").update({ occupied_slots: occ || 0 }).eq("name", updates.dormitory);
+      }
+
       if (error) throw error;
       return data;
     } catch (err) {
       if (err instanceof z.ZodError) return reply.status(400).send({ error: "Dados inválidos", details: err.issues });
       server.log.error(err);
       return reply.status(500).send({ error: "Erro ao atualizar personagem" });
+    }
+  });
+
+  server.delete("/:id", { preHandler: [requireGM] }, async (request, reply) => {
+    const { id } = request.params as { id: string };
+    try {
+      // Buscar para atualizar dormitory
+      const { data: char } = await supabase.from("characters").select("dormitory").eq("id", id).single();
+      // Deletar relações de amizade
+      await supabase.from("relationships").delete().or(`player_id.eq.${id},npc_id.eq.${id}`);
+      // Deletar matérias vinculadas
+      await supabase.from("character_subjects").delete().eq("character_id", id);
+      // Deletar personagem
+      const { error } = await supabase.from("characters").delete().eq("id", id);
+      if (error) throw error;
+      // Atualizar vagas do dormitório
+      if (char && char.dormitory && char.dormitory !== "—") {
+        const { count: occ } = await supabase.from("characters").select("id", { count: "exact", head: true }).eq("dormitory", char.dormitory);
+        await supabase.from("dormitories").update({ occupied_slots: Math.max(0, (occ || 0) - 1) }).eq("name", char.dormitory);
+      }
+      return { deleted: true, id };
+    } catch (err) {
+      server.log.error(err);
+      return reply.status(500).send({ error: "Erro ao excluir personagem" });
     }
   });
 }
